@@ -533,5 +533,35 @@ class DomainEngineTest {
         )
         assertTrue(beforeStart.tasks.isEmpty())
     }
+
+    @Test
+    fun `tasks linked to anchor and missing anchor detection`() {
+        val plan = basePlan()
+        val linkedTasks = plan.tasksLinkedToAnchor("anchor_breakfast")
+        assertEquals(1, linkedTasks.size)
+        assertEquals("med_after_breakfast", linkedTasks.first().id)
+
+        val unlinked = plan.tasksLinkedToAnchor("anchor_dinner")
+        assertTrue(unlinked.isEmpty())
+
+        val relTask = linkedTasks.first()
+        assertFalse(relTask.isMissingAnchor(plan.anchors))
+
+        // When anchor is removed from plan
+        val planWithoutAnchors = plan.copy(anchors = emptyList())
+        assertTrue(relTask.isMissingAnchor(planWithoutAnchors.anchors))
+
+        val timeline = DailyScheduleResolver.resolve(
+            plan = planWithoutAnchors,
+            logicalDate = testDate,
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+
+        val resolvedRelative = timeline.tasks.first { it.task.id == "med_after_breakfast" }
+        assertTrue(resolvedRelative.isMissingAnchor)
+        assertNull(resolvedRelative.anchorTitle)
+    }
 }
 

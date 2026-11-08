@@ -168,7 +168,12 @@ data class TaskRule(
     val schedule: ScheduleRule,
     val escalation: EscalationPolicy? = null,
     val inventory: PillInventory? = null,
-)
+) {
+    fun isMissingAnchor(anchors: List<AnchorRule>): Boolean {
+        val rule = schedule as? ScheduleRule.RelativeToAnchor ?: return false
+        return anchors.none { it.id == rule.anchorId }
+    }
+}
 
 @Serializable
 enum class ElderQuickReturnMode {
@@ -215,6 +220,10 @@ data class PlanSnapshot(
 ) {
     val safeZoneId: java.time.ZoneId
         get() = runCatching { java.time.ZoneId.of(timezone) }.getOrElse { java.time.ZoneId.systemDefault() }
+
+    fun tasksLinkedToAnchor(anchorId: String): List<TaskRule> {
+        return tasks.filter { (it.schedule as? ScheduleRule.RelativeToAnchor)?.anchorId == anchorId }
+    }
 }
 
 @Serializable

@@ -268,10 +268,12 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
         )
 
         val activeOrNext = timeline.tasks.firstOrNull {
-            it.status == ResolvedTaskStatus.DUE_NOW ||
-                it.status == ResolvedTaskStatus.PENDING ||
-                it.status == ResolvedTaskStatus.SNOOZED ||
-                it.status == ResolvedTaskStatus.WAITING_FOR_ANCHOR
+            !it.isMissingAnchor && (
+                it.status == ResolvedTaskStatus.DUE_NOW ||
+                    it.status == ResolvedTaskStatus.PENDING ||
+                    it.status == ResolvedTaskStatus.SNOOZED ||
+                    it.status == ResolvedTaskStatus.WAITING_FOR_ANCHOR
+            )
         }
 
         val (title, text) = if (activeOrNext != null) {

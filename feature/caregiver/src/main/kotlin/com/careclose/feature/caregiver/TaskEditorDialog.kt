@@ -131,7 +131,7 @@ fun TaskEditorDialog(
 
     var selectedAnchorId by remember {
         mutableStateOf(
-            (initialRule as? ScheduleRule.RelativeToAnchor)?.anchorId
+            (initialRule as? ScheduleRule.RelativeToAnchor)?.anchorId?.takeIf { id -> anchors.any { it.id == id } }
                 ?: anchors.firstOrNull()?.id.orEmpty(),
         )
     }
@@ -465,23 +465,44 @@ fun TaskEditorDialog(
                     }
 
                     ScheduleKind.ANCHOR -> {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            anchors.forEach { anchor ->
-                                FilterChip(
-                                    selected = selectedAnchorId == anchor.id,
-                                    onClick = { selectedAnchorId = anchor.id },
-                                    label = { Text(anchor.title) },
+                        if (anchors.isEmpty()) {
+                            Text(
+                                text = "⚠️ У розкладі немає жодного якоря. Будь ласка, оберіть інший режим часу або спочатку створіть якір.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        } else {
+                            val originalAnchorDeleted = (initialRule as? ScheduleRule.RelativeToAnchor)?.let { r ->
+                                anchors.none { it.id == r.anchorId }
+                            } ?: false
+
+                            if (originalAnchorDeleted) {
+                                Text(
+                                    text = "⚠️ Попередній якір видалено з розкладу! Будь ласка, оберіть новий якір зі списку нижче:",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
                                 )
                             }
+
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                anchors.forEach { anchor ->
+                                    FilterChip(
+                                        selected = selectedAnchorId == anchor.id,
+                                        onClick = { selectedAnchorId = anchor.id },
+                                        label = { Text(anchor.title) },
+                                    )
+                                }
+                            }
+                            OutlinedTextField(
+                                value = offsetMinutesText,
+                                onValueChange = { offsetMinutesText = it },
+                                label = { Text("Через скільки хвилин (0 = одразу)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
                         }
-                        OutlinedTextField(
-                            value = offsetMinutesText,
-                            onValueChange = { offsetMinutesText = it },
-                            label = { Text("Через скільки хвилин (0 = одразу)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
                     }
                 }
 

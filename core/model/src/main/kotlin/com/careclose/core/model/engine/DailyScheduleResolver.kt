@@ -50,7 +50,10 @@ data class ResolvedDailyTask(
     val snoozedUntil: Instant?,
     val anchorTitle: String?,
     val completionNote: String? = null,
-)
+) {
+    val isMissingAnchor: Boolean
+        get() = (task.schedule is ScheduleRule.RelativeToAnchor) && anchorTitle == null
+}
 
 data class DailyTimeline(
     val date: LocalDate,

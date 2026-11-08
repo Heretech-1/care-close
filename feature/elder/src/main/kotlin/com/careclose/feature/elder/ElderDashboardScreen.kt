@@ -500,6 +500,7 @@ private fun FocusTaskCard(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val badgeText = when {
+                item.isMissingAnchor -> "ПОТРІБНЕ НАЛАШТУВАННЯ"
                 isUrgent -> "ЗАРАЗ ПОТРІБНО"
                 item.status == ResolvedTaskStatus.SNOOZED && item.snoozedUntil != null ->
                     "ВІДКЛАДЕНО ДО ${timeFormatter.format(item.snoozedUntil)}"
@@ -570,7 +571,15 @@ private fun FocusTaskCard(
                 )
             }
 
-            if (item.status != ResolvedTaskStatus.WAITING_FOR_ANCHOR) {
+            if (item.isMissingAnchor) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Зверніться до опікуна для оновлення розкладу цієї справи",
+                    fontSize = 18.sp,
+                    color = Color(0xFFB71C1C),
+                    textAlign = TextAlign.Center,
+                )
+            } else if (item.status != ResolvedTaskStatus.WAITING_FOR_ANCHOR) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(
                     onClick = onMarkTaken,
@@ -804,6 +813,8 @@ private data class UndoTarget(
 )
 
 private fun pickFocusTask(tasks: List<ResolvedDailyTask>): ResolvedDailyTask? {
+    val validTasks = tasks.filterNot { it.isMissingAnchor }
+    val candidateList = if (validTasks.isNotEmpty()) validTasks else tasks
     val priorityOrder = listOf(
         ResolvedTaskStatus.MISSED_ONLINE,
         ResolvedTaskStatus.MISSED_DEVICE_OFFLINE,
@@ -813,7 +824,7 @@ private fun pickFocusTask(tasks: List<ResolvedDailyTask>): ResolvedDailyTask? {
         ResolvedTaskStatus.WAITING_FOR_ANCHOR,
     )
     for (status in priorityOrder) {
-        val match = tasks.firstOrNull { it.status == status }
+        val match = candidateList.firstOrNull { it.status == status }
         if (match != null) return match
     }
     return null

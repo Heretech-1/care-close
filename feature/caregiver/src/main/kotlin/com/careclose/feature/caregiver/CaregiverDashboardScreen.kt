@@ -183,6 +183,8 @@ fun CaregiverDashboardScreen(
     var showOneOffDialog by remember { mutableStateOf(false) }
     var showAnchorDialog by remember { mutableStateOf(false) }
     var showEmergencyDialog by remember { mutableStateOf(false) }
+    var anchorBlockedDeleteInfo by remember { mutableStateOf<Pair<AnchorRule, List<TaskRule>>?>(null) }
+    var anchorConfirmDelete by remember { mutableStateOf<AnchorRule?>(null) }
 
     suspend fun publishUpdatedPlan(
         updatedPlan: PlanSnapshot,
@@ -554,14 +556,14 @@ fun CaregiverDashboardScreen(
                         },
                         onAddAnchor = { showAnchorDialog = true },
                         onDeleteAnchor = { anchorId ->
-                            val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
-                                effectiveFromUtc = Instant.now().toString(),
-                                anchors = plan.anchors.filterNot { it.id == anchorId },
-                            )
-                            scope.launch {
-                                runCatching { publishUpdatedPlan(updated) }
-                                    .onFailure { statusBanner = "Помилка публікації: ${it.message}" }
+                            val anchor = plan.anchors.firstOrNull { it.id == anchorId }
+                            if (anchor != null) {
+                                val linked = plan.tasksLinkedToAnchor(anchorId)
+                                if (linked.isNotEmpty()) {
+                                    anchorBlockedDeleteInfo = anchor to linked
+                                } else {
+                                    anchorConfirmDelete = anchor
+                                }
                             }
                         },
                     )
@@ -728,6 +730,80 @@ fun CaregiverDashboardScreen(
                 scope.launch {
                     runCatching { publishUpdatedPlan(updated) }
                         .onFailure { statusBanner = "Помилка збереження якоря: ${it.message}" }
+                }
+            },
+        )
+    }
+
+    anchorBlockedDeleteInfo?.let { (blockedAnchor, linkedTasks) ->
+        AlertDialog(
+            onDismissRequest = { anchorBlockedDeleteInfo = null },
+            title = {
+                Text("Неможливо видалити якір", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "До якоря «${blockedAnchor.title}» прив'язано ${linkedTasks.size} ${if (linkedTasks.size == 1) "завдання" else "завдань"}:",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            linkedTasks.forEach { task ->
+                                Text("• ${task.title}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Щоб видалити цей якір, спочатку змініть прив'язку цих справ до іншого часу або видаліть їх.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { anchorBlockedDeleteInfo = null }) {
+                    Text("Зрозуміло")
+                }
+            },
+        )
+    }
+
+    anchorConfirmDelete?.let { targetAnchor ->
+        AlertDialog(
+            onDismissRequest = { anchorConfirmDelete = null },
+            title = { Text("Видалити якір «${targetAnchor.title}»?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("До цього якоря не прив'язано жодних справ. Видалити його з розкладу?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDeleteId = targetAnchor.id
+                        anchorConfirmDelete = null
+                        if (currentPlan != null) {
+                            val updated = currentPlan.copy(
+                                planVersion = currentPlan.planVersion + 1L,
+                                effectiveFromUtc = Instant.now().toString(),
+                                anchors = currentPlan.anchors.filterNot { it.id == toDeleteId },
+                            )
+                            scope.launch {
+                                runCatching { publishUpdatedPlan(updated) }
+                                    .onFailure { statusBanner = "Помилка видалення якоря: ${it.message}" }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Видалити")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { anchorConfirmDelete = null }) {
+                    Text("Скасувати")
                 }
             },
         )
@@ -935,10 +1011,12 @@ private fun CaregiverTimelineTaskCard(
     onOverrideTaken: () -> Unit,
     onUndoCompleted: () -> Unit,
 ) {
-    val containerColor = when (item.status) {
-        ResolvedTaskStatus.COMPLETED -> Color(0xFFF1F8E9)
-        ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFEBEE)
-        ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFF3E0)
+    val isMissingAnchor = item.isMissingAnchor
+    val containerColor = when {
+        isMissingAnchor -> Color(0xFFFFEBEE)
+        item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFFF1F8E9)
+        item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFEBEE)
+        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFF3E0)
         else -> MaterialTheme.colorScheme.surface
     }
     Card(
@@ -948,8 +1026,11 @@ private fun CaregiverTimelineTaskCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            val timeStr = item.scheduledAt?.let { timeFormatter.format(it) }
-                ?: "Після: ${item.anchorTitle ?: "події"}"
+            val timeStr = when {
+                isMissingAnchor -> "⚠️ Якір відсутній"
+                item.scheduledAt != null -> timeFormatter.format(item.scheduledAt)
+                else -> "Після: ${item.anchorTitle ?: "події"}"
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -964,10 +1045,11 @@ private fun CaregiverTimelineTaskCard(
                 )
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = when (item.status) {
-                        ResolvedTaskStatus.COMPLETED -> Color(0xFFC8E6C9)
-                        ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFCDD2)
-                        ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFE0B2)
+                    color = when {
+                        isMissingAnchor -> Color(0xFFFFCDD2)
+                        item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFFC8E6C9)
+                        item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFCDD2)
+                        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFE0B2)
                         else -> MaterialTheme.colorScheme.surfaceVariant
                     },
                 ) {
@@ -975,10 +1057,11 @@ private fun CaregiverTimelineTaskCard(
                         text = statusLabelUk(item),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = when (item.status) {
-                            ResolvedTaskStatus.COMPLETED -> Color(0xFF1B5E20)
-                            ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFB71C1C)
-                            ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFE65100)
+                        color = when {
+                            isMissingAnchor -> Color(0xFFB71C1C)
+                            item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFF1B5E20)
+                            item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFB71C1C)
+                            item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFE65100)
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -989,6 +1072,16 @@ private fun CaregiverTimelineTaskCard(
             item.task.doseLabel?.let {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF555555))
+            }
+
+            if (isMissingAnchor) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "⚠️ Помилка: якір прив'язки видалено з розкладу! Перейдіть у вкладку «Розклад», щоб призначити новий якір або точний час.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFB71C1C),
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1115,6 +1208,7 @@ private fun ScheduleEditorContent(
         }
 
         items(plan.anchors, key = { it.id }) { anchor ->
+            val linkedTasks = plan.tasksLinkedToAnchor(anchor.id)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -1129,6 +1223,15 @@ private fun ScheduleEditorContent(
                             text = "Вікно: ${anchor.windowStart}–${anchor.windowEnd}",
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        if (linkedTasks.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "🔗 Прив'язано справ: ${linkedTasks.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     if (!isReadOnly) {
                         IconButton(onClick = { onDeleteAnchor(anchor.id) }) {
@@ -1148,7 +1251,14 @@ private fun ScheduleEditorContent(
         }
 
         items(plan.tasks, key = { it.id }) { task ->
-            Card(modifier = Modifier.fillMaxWidth()) {
+            val isMissingAnchor = task.isMissingAnchor(plan.anchors)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                border = if (isMissingAnchor) BorderStroke(1.5.dp, Color(0xFFD32F2F)) else null,
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isMissingAnchor) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.surface,
+                ),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1161,9 +1271,12 @@ private fun ScheduleEditorContent(
                         val ruleDesc = when (val rule = task.schedule) {
                             is ScheduleRule.Fixed -> "О ${rule.time}"
                             is ScheduleRule.RelativeToAnchor -> {
-                                val anchorTitle = plan.anchors.firstOrNull { it.id == rule.anchorId }?.title
-                                    ?: rule.anchorId
-                                "Через ${rule.offsetMinutes} хв після «$anchorTitle»"
+                                val anchor = plan.anchors.firstOrNull { it.id == rule.anchorId }
+                                if (anchor != null) {
+                                    "Через ${rule.offsetMinutes} хв після «${anchor.title}»"
+                                } else {
+                                    "⚠️ Якір «${rule.anchorId}» видалено!"
+                                }
                             }
                             is ScheduleRule.OneOff -> "Одноразово: ${rule.date} о ${rule.time}"
                             is ScheduleRule.EveryNDays -> "Кожні ${rule.intervalDays} дн. о ${rule.time} (з ${rule.startDate})"
@@ -1174,7 +1287,20 @@ private fun ScheduleEditorContent(
                             if (task.photoMediaId != null) add("📷")
                             if (task.voiceMediaId != null) add("🎙")
                         }.joinToString(" · ")
-                        Text(text = badges, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            text = badges,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isMissingAnchor) Color(0xFFB71C1C) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (isMissingAnchor) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                        if (isMissingAnchor) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Натисніть олівець, щоб призначити дійсний якір або фіксований час",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFB71C1C),
+                            )
+                        }
                     }
                     if (!isReadOnly) {
                         Row {
@@ -1661,6 +1787,7 @@ private fun AddAnchorDialog(
 }
 
 private fun statusLabelUk(item: ResolvedDailyTask): String {
+    if (item.isMissingAnchor) return "⚠️ Помилка якоря"
     return when (item.status) {
         ResolvedTaskStatus.WAITING_FOR_ANCHOR -> "Очікує подію"
         ResolvedTaskStatus.PENDING -> "Очікується"
