@@ -242,6 +242,7 @@ class AlarmCoordinator(
                 scheduledAtUtc = scheduledAt.toString(),
                 attemptNumber = attempt,
                 recipientGender = plan.recipientRole.gender,
+                taskType = dueTask.task.type,
             )
         }
 

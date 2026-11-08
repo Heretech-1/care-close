@@ -414,7 +414,7 @@ private fun FullScreenAlarmContent(
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
                     ) {
                         Text(
-                            text = CareCloseWording.elderActionTakenButton(payload.recipientGender),
+                            text = CareCloseWording.elderActionTakenButton(payload.recipientGender, payload.taskType),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,

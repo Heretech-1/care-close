@@ -104,6 +104,25 @@ sealed interface ScheduleRule {
         override val daysOfWeek: List<Int> = ALL_DAYS,
     ) : ScheduleRule
 
+    @Serializable
+    @SerialName("ONE_OFF")
+    data class OneOff(
+        val date: String,
+        val time: String,
+    ) : ScheduleRule {
+        override val daysOfWeek: List<Int> = ALL_DAYS
+    }
+
+    @Serializable
+    @SerialName("EVERY_N_DAYS")
+    data class EveryNDays(
+        val time: String,
+        val intervalDays: Int,
+        val startDate: String,
+    ) : ScheduleRule {
+        override val daysOfWeek: List<Int> = ALL_DAYS
+    }
+
     companion object {
         val ALL_DAYS: List<Int> = listOf(1, 2, 3, 4, 5, 6, 7)
     }

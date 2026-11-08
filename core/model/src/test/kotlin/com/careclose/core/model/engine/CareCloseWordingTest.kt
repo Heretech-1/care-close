@@ -4,6 +4,7 @@ import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Gender
 import com.careclose.core.model.PlanSnapshot
 import com.careclose.core.model.RecipientRole
+import com.careclose.core.model.TaskType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,9 +27,15 @@ class CareCloseWordingTest {
     fun `formats mother and daughter wording naturally in Ukrainian`() {
         val plan = samplePlan()
         assertEquals("Мама", CareCloseWording.recipientDisplayName(plan))
-        assertEquals("ПРИЙНЯЛА / ЗРОБИЛА", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender))
-        assertEquals("Відмітити як виконано (Дала ліки)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole))
-        assertEquals("Дала особисто (Донька)", CareCloseWording.caregiverOverrideNote(plan.caregiverRole))
+        assertEquals("ПРИЙНЯЛА", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender, TaskType.MEDICATION))
+        assertEquals("ЗРОБИЛА", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender, TaskType.ROUTINE))
+        assertEquals("Відмітити як виконано (Дала ліки)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole, TaskType.MEDICATION))
+        assertEquals("Відмітити як виконано (Допомогла)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole, TaskType.ROUTINE))
+        assertEquals("Дала особисто (Донька)", CareCloseWording.caregiverOverrideNote(plan.caregiverRole, taskType = TaskType.MEDICATION))
+        assertEquals("Допомогла особисто (Донька)", CareCloseWording.caregiverOverrideNote(plan.caregiverRole, taskType = TaskType.ROUTINE))
+
+        val notSyncedYet = CareCloseWording.onlinePresenceStatus(plan, isOnline = false, minutesSince = null)
+        assertEquals("Телефон: Мама ще не синхронізувалася", notSyncedYet)
 
         val online = CareCloseWording.onlinePresenceStatus(plan, isOnline = true, minutesSince = 5)
         assertEquals("🟢 Мама онлайн (5 хв тому)", online)
@@ -45,9 +52,14 @@ class CareCloseWordingTest {
             caregiverRole = CaregiverRole.SON,
         )
         assertEquals("Тато Богдан", CareCloseWording.recipientDisplayName(plan))
-        assertEquals("ПРИЙНЯВ / ЗРОБИВ", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender))
-        assertEquals("Відмітити як виконано (Дав ліки)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole))
-        assertEquals("Дав особисто (Син)", CareCloseWording.caregiverOverrideNote(plan.caregiverRole))
+        assertEquals("ПРИЙНЯВ", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender, TaskType.MEDICATION))
+        assertEquals("ЗРОБИВ", CareCloseWording.elderActionTakenButton(plan.recipientRole.gender, TaskType.ROUTINE))
+        assertEquals("Відмітити як виконано (Дав ліки)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole, TaskType.MEDICATION))
+        assertEquals("Відмітити як виконано (Допоміг)", CareCloseWording.caregiverOverrideButton(plan.caregiverRole, TaskType.ROUTINE))
+        assertEquals("Дав особисто (Син)", CareCloseWording.caregiverOverrideNote(plan.caregiverRole, taskType = TaskType.MEDICATION))
+
+        val notSyncedYet = CareCloseWording.onlinePresenceStatus(plan, isOnline = false, minutesSince = null)
+        assertEquals("Телефон: Тато Богдан ще не синхронізувався", notSyncedYet)
 
         val offline = CareCloseWording.onlinePresenceStatus(plan, isOnline = false, minutesSince = 90)
         assertEquals("🔴 Тато Богдан не виходив на зв'язок (90 хв тому)", offline)
@@ -79,21 +91,41 @@ class CareCloseWordingTest {
         )
         assertEquals("✓ Виконала медсестра (Оксана)", helperBadge)
 
-        val motherBadge = CareCloseWording.completedTaskBadge(
+        val motherMedBadge = CareCloseWording.completedTaskBadge(
             completedBy = com.careclose.core.model.Role.ELDER,
             completionNote = null,
             recipientName = "Мама",
             gender = Gender.FEMALE,
+            taskType = TaskType.MEDICATION,
         )
-        assertEquals("✓ Мама прийняла", motherBadge)
+        assertEquals("✓ Мама прийняла", motherMedBadge)
+
+        val motherRoutineBadge = CareCloseWording.completedTaskBadge(
+            completedBy = com.careclose.core.model.Role.ELDER,
+            completionNote = null,
+            recipientName = "Мама",
+            gender = Gender.FEMALE,
+            taskType = TaskType.ROUTINE,
+        )
+        assertEquals("✓ Мама зробила", motherRoutineBadge)
 
         val fatherBadge = CareCloseWording.completedTaskBadge(
             completedBy = com.careclose.core.model.Role.ELDER,
             completionNote = null,
             recipientName = "Тато",
             gender = Gender.MALE,
+            taskType = TaskType.MEDICATION,
         )
         assertEquals("✓ Тато прийняв", fatherBadge)
+
+        val fatherRoutineBadge = CareCloseWording.completedTaskBadge(
+            completedBy = com.careclose.core.model.Role.ELDER,
+            completionNote = null,
+            recipientName = "Тато",
+            gender = Gender.MALE,
+            taskType = TaskType.ROUTINE,
+        )
+        assertEquals("✓ Тато зробив", fatherRoutineBadge)
     }
 
     @Test
@@ -104,7 +136,8 @@ class CareCloseWordingTest {
             caregiverRole = CaregiverRole.OTHER,
         )
         assertEquals("Підопічний", CareCloseWording.recipientDisplayName(plan))
-        assertEquals("ПРИЙНЯТО / ЗРОБЛЕНО", CareCloseWording.elderActionTakenButton(Gender.UNSPECIFIED))
+        assertEquals("ПРИЙНЯТО", CareCloseWording.elderActionTakenButton(Gender.UNSPECIFIED, TaskType.MEDICATION))
+        assertEquals("ВИКОНАНО", CareCloseWording.elderActionTakenButton(Gender.UNSPECIFIED, TaskType.ROUTINE))
         assertEquals("Відмітити як виконано (Я поруч)", CareCloseWording.caregiverOverrideButton(CaregiverRole.OTHER))
     }
 }

@@ -14,6 +14,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 enum class ResolvedTaskStatus {
     WAITING_FOR_ANCHOR,
@@ -108,7 +109,7 @@ object DailyScheduleResolver {
         val allAnchorDefinitions = plan.anchors.associateBy { it.id }
 
         val resolvedTasks = plan.tasks
-            .filter { isoDay in it.schedule.daysOfWeek }
+            .filter { isTaskScheduledOnDate(it.schedule, logicalDate) }
             .map { task ->
                 resolveTask(
                     task = task,
@@ -217,6 +218,14 @@ object DailyScheduleResolver {
                 anchorTitle = resolvedAnchor?.anchor?.title
                     ?: allAnchorDefinitions[rule.anchorId]?.title
                 resolvedAnchor?.confirmedAt?.plusSeconds(rule.offsetMinutes * 60L)
+            }
+
+            is ScheduleRule.OneOff -> {
+                logicalDate.atTime(LocalTime.parse(rule.time)).atZone(zone).toInstant()
+            }
+
+            is ScheduleRule.EveryNDays -> {
+                logicalDate.atTime(LocalTime.parse(rule.time)).atZone(zone).toInstant()
             }
         }
 
@@ -390,5 +399,21 @@ object DailyScheduleResolver {
             .mapNotNull { it.caregiverDeadlineAt?.plusSeconds(CAREGIVER_CHECK_BUFFER_SEC) }
             .filter { !it.isBefore(now) }
             .minOrNull()
+    }
+
+    fun isTaskScheduledOnDate(rule: ScheduleRule, logicalDate: LocalDate): Boolean = when (rule) {
+        is ScheduleRule.Fixed -> logicalDate.dayOfWeek.value in rule.daysOfWeek
+        is ScheduleRule.RelativeToAnchor -> logicalDate.dayOfWeek.value in rule.daysOfWeek
+        is ScheduleRule.OneOff -> logicalDate.toString() == rule.date
+        is ScheduleRule.EveryNDays -> {
+            runCatching {
+                val start = LocalDate.parse(rule.startDate)
+                if (logicalDate.isBefore(start)) {
+                    false
+                } else {
+                    ChronoUnit.DAYS.between(start, logicalDate) % rule.intervalDays.coerceAtLeast(1) == 0L
+                }
+            }.getOrDefault(false)
+        }
     }
 }

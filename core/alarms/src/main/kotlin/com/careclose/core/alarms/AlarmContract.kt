@@ -16,6 +16,7 @@ import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.Gender
+import com.careclose.core.model.TaskType
 import kotlinx.serialization.Serializable
 
 enum class AlarmKind {
@@ -41,6 +42,7 @@ data class AlarmPayload(
     val scheduledAtUtc: String,
     val attemptNumber: Int = 0,
     val recipientGender: Gender = Gender.UNSPECIFIED,
+    val taskType: TaskType = TaskType.MEDICATION,
 )
 
 data class AlarmPermissionStatus(

@@ -439,5 +439,99 @@ class DomainEngineTest {
         val decodedEvent = CareCloseJson.instance.decodeFromString(CareEvent.serializer(), eventJson)
         assertEquals(CareEventType.EMERGENCY_PING, decodedEvent.type)
     }
+
+    @Test
+    fun `one-off task resolves only on its designated date`() {
+        val oneOffTask = TaskRule(
+            id = "task_doctor",
+            type = TaskType.ROUTINE,
+            criticality = Criticality.CRITICAL,
+            title = "Візит до лікаря",
+            schedule = ScheduleRule.OneOff(date = "2026-11-08", time = "14:30"),
+        )
+        val plan = basePlan().copy(tasks = listOf(oneOffTask))
+
+        val todayTimeline = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-08"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(10, 0),
+        )
+        assertEquals(1, todayTimeline.tasks.size)
+        assertEquals("Візит до лікаря", todayTimeline.tasks.first().task.title)
+
+        val tomorrowTimeline = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-09"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(10, 0),
+        )
+        assertTrue(tomorrowTimeline.tasks.isEmpty())
+
+        val jsonStr = CareCloseJson.instance.encodeToString(PlanSnapshot.serializer(), plan)
+        val decoded = CareCloseJson.instance.decodeFromString(PlanSnapshot.serializer(), jsonStr)
+        val decodedRule = decoded.tasks.first().schedule as ScheduleRule.OneOff
+        assertEquals("2026-11-08", decodedRule.date)
+        assertEquals("14:30", decodedRule.time)
+    }
+
+    @Test
+    fun `every N days task resolves accurately according to interval and start date`() {
+        val intervalTask = TaskRule(
+            id = "task_patch",
+            type = TaskType.MEDICATION,
+            criticality = Criticality.CRITICAL,
+            title = "Зміна пластиру",
+            schedule = ScheduleRule.EveryNDays(time = "09:00", intervalDays = 3, startDate = "2026-11-08"),
+        )
+        val plan = basePlan().copy(tasks = listOf(intervalTask))
+
+        val day0 = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-08"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+        assertEquals(1, day0.tasks.size)
+
+        val day1 = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-09"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+        assertTrue(day1.tasks.isEmpty())
+
+        val day2 = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-10"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+        assertTrue(day2.tasks.isEmpty())
+
+        val day3 = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-11"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+        assertEquals(1, day3.tasks.size)
+
+        val beforeStart = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = LocalDate.parse("2026-11-07"),
+            events = emptyList(),
+            elderPresence = null,
+            now = kyivInstant(8, 0),
+        )
+        assertTrue(beforeStart.tasks.isEmpty())
+    }
 }
 

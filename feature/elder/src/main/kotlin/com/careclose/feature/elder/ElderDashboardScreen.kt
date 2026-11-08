@@ -288,6 +288,7 @@ fun ElderDashboardScreen(
                             CareCloseWording.elderRecordedConfirmation(
                                 CareCloseWording.recipientDisplayName(p),
                                 p.recipientRole.gender,
+                                undoTarget.taskType,
                             )
                         } ?: "Записано"
                         Text(
@@ -354,6 +355,7 @@ fun ElderDashboardScreen(
                                     eventId = eventId,
                                     taskId = activeFocusTask.task.id,
                                     title = activeFocusTask.task.title,
+                                    taskType = activeFocusTask.task.type,
                                 )
                                 onEventRecorded()
                                 ElderGlanceWidget.requestUpdate(context)
@@ -586,7 +588,7 @@ private fun FocusTaskCard(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = CareCloseWording.elderActionTakenButton(recipientGender),
+                        text = CareCloseWording.elderActionTakenButton(recipientGender, item.task.type),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
@@ -798,6 +800,7 @@ private data class UndoTarget(
     val eventId: String,
     val taskId: String,
     val title: String,
+    val taskType: com.careclose.core.model.TaskType = com.careclose.core.model.TaskType.MEDICATION,
 )
 
 private fun pickFocusTask(tasks: List<ResolvedDailyTask>): ResolvedDailyTask? {

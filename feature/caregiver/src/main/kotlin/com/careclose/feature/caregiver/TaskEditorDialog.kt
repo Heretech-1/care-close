@@ -51,7 +51,17 @@ import com.careclose.feature.caregiver.media.CaregiverVoiceRecorder
 import com.careclose.feature.caregiver.media.PillPhotoProcessor
 import java.io.File
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
+
+enum class ScheduleKind(val label: String) {
+    DAILY("Щодня"),
+    INTERVAL_DAYS("Кожні N днів"),
+    HOURLY_INTERVAL("Кожні N годин"),
+    ONE_OFF("Одноразово"),
+    ANCHOR("Після події"),
+}
 
 data class PendingMediaUpload(
     val mediaId: String,
@@ -66,7 +76,7 @@ fun TaskEditorDialog(
     anchors: List<AnchorRule>,
     mediaCacheDir: File,
     onDismiss: () -> Unit,
-    onSave: (TaskRule, List<PendingMediaUpload>) -> Unit,
+    onSave: (List<TaskRule>, List<PendingMediaUpload>) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -80,12 +90,45 @@ fun TaskEditorDialog(
     var instruction by remember { mutableStateOf(initialTask?.instruction ?: "") }
 
     val initialRule = initialTask?.schedule
-    var isRelative by remember {
-        mutableStateOf(initialRule is ScheduleRule.RelativeToAnchor && anchors.isNotEmpty())
+    var scheduleKind by remember {
+        mutableStateOf(
+            when (initialRule) {
+                is ScheduleRule.RelativeToAnchor -> if (anchors.isNotEmpty()) ScheduleKind.ANCHOR else ScheduleKind.DAILY
+                is ScheduleRule.OneOff -> ScheduleKind.ONE_OFF
+                is ScheduleRule.EveryNDays -> ScheduleKind.INTERVAL_DAYS
+                is ScheduleRule.Fixed, null -> ScheduleKind.DAILY
+            },
+        )
     }
     var fixedTimeText by remember {
-        mutableStateOf((initialRule as? ScheduleRule.Fixed)?.time ?: "08:00")
+        mutableStateOf(
+            when (initialRule) {
+                is ScheduleRule.Fixed -> initialRule.time
+                is ScheduleRule.OneOff -> initialRule.time
+                is ScheduleRule.EveryNDays -> initialRule.time
+                else -> "08:00"
+            },
+        )
     }
+    var intervalDaysText by remember {
+        mutableStateOf(
+            (initialRule as? ScheduleRule.EveryNDays)?.intervalDays?.toString() ?: "2",
+        )
+    }
+    var intervalStartDateText by remember {
+        mutableStateOf(
+            (initialRule as? ScheduleRule.EveryNDays)?.startDate ?: LocalDate.now().toString(),
+        )
+    }
+    var oneOffDateText by remember {
+        mutableStateOf(
+            (initialRule as? ScheduleRule.OneOff)?.date ?: LocalDate.now().toString(),
+        )
+    }
+    var hourlyStartTimeText by remember { mutableStateOf("08:00") }
+    var hourlyEndTimeText by remember { mutableStateOf("20:00") }
+    var hourlyStepHours by remember { mutableStateOf(3) }
+
     var selectedAnchorId by remember {
         mutableStateOf(
             (initialRule as? ScheduleRule.RelativeToAnchor)?.anchorId
@@ -264,48 +307,182 @@ fun TaskEditorDialog(
                     singleLine = true,
                 )
 
-                Text(text = "Коли нагадувати:", fontWeight = FontWeight.SemiBold)
+                Text(text = "Режим повторення:", fontWeight = FontWeight.SemiBold)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !isRelative,
-                        onClick = { isRelative = false },
-                        label = { Text("Фіксований час") },
-                    )
-                    if (anchors.isNotEmpty()) {
-                        FilterChip(
-                            selected = isRelative,
-                            onClick = { isRelative = true },
-                            label = { Text("Після події-якоря") },
-                        )
-                    }
-                }
-
-                if (!isRelative) {
-                    OutlinedTextField(
-                        value = fixedTimeText,
-                        onValueChange = { fixedTimeText = it },
-                        label = { Text("Час (HH:mm, напр. 08:30)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                } else {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        anchors.forEach { anchor ->
+                    ScheduleKind.entries.forEach { kind ->
+                        if (kind != ScheduleKind.ANCHOR || anchors.isNotEmpty()) {
                             FilterChip(
-                                selected = selectedAnchorId == anchor.id,
-                                onClick = { selectedAnchorId = anchor.id },
-                                label = { Text(anchor.title) },
+                                selected = scheduleKind == kind,
+                                onClick = { scheduleKind = kind },
+                                label = { Text(kind.label) },
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = offsetMinutesText,
-                        onValueChange = { offsetMinutesText = it },
-                        label = { Text("Через скільки хвилин (0 = одразу)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
+                }
+
+                when (scheduleKind) {
+                    ScheduleKind.DAILY -> {
+                        OutlinedTextField(
+                            value = fixedTimeText,
+                            onValueChange = { fixedTimeText = it },
+                            label = { Text("Час прийому (HH:mm, напр. 08:30)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+
+                    ScheduleKind.INTERVAL_DAYS -> {
+                        Text("Інтервал повторення:", style = MaterialTheme.typography.bodySmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                2 to "Кожні 2 дні",
+                                3 to "Кожні 3 дні",
+                                4 to "Кожні 4 дні",
+                                7 to "Кожні 7 днів",
+                            ).forEach { (d, lbl) ->
+                                FilterChip(
+                                    selected = intervalDaysText == d.toString(),
+                                    onClick = { intervalDaysText = d.toString() },
+                                    label = { Text(lbl) },
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = intervalDaysText,
+                                onValueChange = { intervalDaysText = it },
+                                label = { Text("Інтервал (днів)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = fixedTimeText,
+                                onValueChange = { fixedTimeText = it },
+                                label = { Text("Час (HH:mm)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                        }
+                        OutlinedTextField(
+                            value = intervalStartDateText,
+                            onValueChange = { intervalStartDateText = it },
+                            label = { Text("Дата початку відліку (YYYY-MM-DD)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+
+                    ScheduleKind.HOURLY_INTERVAL -> {
+                        Text("Інтервал між прийомами:", style = MaterialTheme.typography.bodySmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(2, 3, 4, 6, 8).forEach { step ->
+                                FilterChip(
+                                    selected = hourlyStepHours == step,
+                                    onClick = { hourlyStepHours = step },
+                                    label = { Text("Кожні $step год") },
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = hourlyStartTimeText,
+                                onValueChange = { hourlyStartTimeText = it },
+                                label = { Text("З котрої (HH:mm)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = hourlyEndTimeText,
+                                onValueChange = { hourlyEndTimeText = it },
+                                label = { Text("До котрої (HH:mm)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                        }
+                        val previewSlots = remember(hourlyStartTimeText, hourlyEndTimeText, hourlyStepHours) {
+                            runCatching {
+                                val s = TimeInputValidator.normalizeTimeOrNull(hourlyStartTimeText) ?: "08:00"
+                                val e = TimeInputValidator.normalizeTimeOrNull(hourlyEndTimeText) ?: "20:00"
+                                val sTime = LocalTime.parse(s)
+                                val eTime = LocalTime.parse(e)
+                                val list = mutableListOf<String>()
+                                var c = sTime
+                                while (!c.isAfter(eTime)) {
+                                    list.add(String.format("%02d:%02d", c.hour, c.minute))
+                                    c = c.plusHours(hourlyStepHours.toLong())
+                                    if (c.isBefore(sTime)) break
+                                }
+                                list
+                            }.getOrDefault(emptyList())
+                        }
+                        if (previewSlots.isNotEmpty()) {
+                            Text(
+                                text = "Буде створено ${previewSlots.size} прийомів: ${previewSlots.joinToString(", ")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+
+                    ScheduleKind.ONE_OFF -> {
+                        val today = remember { LocalDate.now() }
+                        val tomorrow = remember { today.plusDays(1) }
+                        val dayAfter = remember { today.plusDays(2) }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = oneOffDateText == today.toString(),
+                                onClick = { oneOffDateText = today.toString() },
+                                label = { Text("Сьогодні") },
+                            )
+                            FilterChip(
+                                selected = oneOffDateText == tomorrow.toString(),
+                                onClick = { oneOffDateText = tomorrow.toString() },
+                                label = { Text("Завтра") },
+                            )
+                            FilterChip(
+                                selected = oneOffDateText == dayAfter.toString(),
+                                onClick = { oneOffDateText = dayAfter.toString() },
+                                label = { Text("Післязавтра") },
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = oneOffDateText,
+                                onValueChange = { oneOffDateText = it },
+                                label = { Text("Дата (YYYY-MM-DD)") },
+                                modifier = Modifier.weight(1.3f),
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = fixedTimeText,
+                                onValueChange = { fixedTimeText = it },
+                                label = { Text("Час (HH:mm)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                        }
+                    }
+
+                    ScheduleKind.ANCHOR -> {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            anchors.forEach { anchor ->
+                                FilterChip(
+                                    selected = selectedAnchorId == anchor.id,
+                                    onClick = { selectedAnchorId = anchor.id },
+                                    label = { Text(anchor.title) },
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = offsetMinutesText,
+                            onValueChange = { offsetMinutesText = it },
+                            label = { Text("Через скільки хвилин (0 = одразу)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -443,22 +620,6 @@ fun TaskEditorDialog(
                         return@Button
                     }
 
-                    val scheduleRule = if (!isRelative) {
-                        val normalized = TimeInputValidator.normalizeTimeOrNull(fixedTimeText)
-                        if (normalized == null) {
-                            validationError = "Формат часу має бути HH:mm (наприклад, 08:30)"
-                            return@Button
-                        }
-                        ScheduleRule.Fixed(time = normalized)
-                    } else {
-                        val offset = offsetMinutesText.trim().toIntOrNull()
-                        if (selectedAnchorId.isBlank() || offset == null) {
-                            validationError = "Оберіть якір та коректні хвилини"
-                            return@Button
-                        }
-                        ScheduleRule.RelativeToAnchor(anchorId = selectedAnchorId, offsetMinutes = offset)
-                    }
-
                     val doseCount = doseCountText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 }
                     val inventory = if (taskType == TaskType.MEDICATION && trackInventory) {
                         val rem = remainingStockText.replace(',', '.').toDoubleOrNull() ?: 30.0
@@ -472,6 +633,108 @@ fun TaskEditorDialog(
                         )
                     } else {
                         null
+                    }
+
+                    if (scheduleKind == ScheduleKind.HOURLY_INTERVAL) {
+                        val normStart = TimeInputValidator.normalizeTimeOrNull(hourlyStartTimeText)
+                        val normEnd = TimeInputValidator.normalizeTimeOrNull(hourlyEndTimeText)
+                        if (normStart == null || normEnd == null) {
+                            validationError = "Формат часу має бути HH:mm (наприклад, 08:00)"
+                            return@Button
+                        }
+                        val sTime = LocalTime.parse(normStart)
+                        val eTime = LocalTime.parse(normEnd)
+                        if (sTime.isAfter(eTime)) {
+                            validationError = "Час початку не може бути пізніше за час закінчення"
+                            return@Button
+                        }
+                        val slotList = mutableListOf<String>()
+                        var curr = sTime
+                        while (!curr.isAfter(eTime)) {
+                            slotList.add(String.format("%02d:%02d", curr.hour, curr.minute))
+                            curr = curr.plusHours(hourlyStepHours.toLong())
+                            if (curr.isBefore(sTime)) break
+                        }
+                        if (slotList.isEmpty()) {
+                            validationError = "Не вдалося згенерувати часові слоти"
+                            return@Button
+                        }
+
+                        val generated = slotList.mapIndexed { index, slotTime ->
+                            TaskRule(
+                                id = if (index == 0) (initialTask?.id ?: "task_${UUID.randomUUID().toString().take(8)}") else "task_${UUID.randomUUID().toString().take(8)}",
+                                type = taskType,
+                                criticality = criticality,
+                                title = trimmedTitle,
+                                doseVisualCount = doseCount,
+                                doseLabel = doseLabel.trim().takeIf { it.isNotEmpty() },
+                                instruction = instruction.trim().takeIf { it.isNotEmpty() },
+                                photoMediaId = photoMediaId,
+                                voiceMediaId = voiceMediaId,
+                                schedule = ScheduleRule.Fixed(time = slotTime),
+                                escalation = if (criticality == Criticality.CRITICAL) {
+                                    initialTask?.escalation ?: EscalationPolicy()
+                                } else null,
+                                inventory = inventory,
+                            )
+                        }
+                        onSave(generated, pendingUploads.toList())
+                        return@Button
+                    }
+
+                    val scheduleRule: ScheduleRule = when (scheduleKind) {
+                        ScheduleKind.DAILY -> {
+                            val normalized = TimeInputValidator.normalizeTimeOrNull(fixedTimeText)
+                            if (normalized == null) {
+                                validationError = "Формат часу має бути HH:mm (наприклад, 08:30)"
+                                return@Button
+                            }
+                            ScheduleRule.Fixed(time = normalized)
+                        }
+
+                        ScheduleKind.INTERVAL_DAYS -> {
+                            val normalized = TimeInputValidator.normalizeTimeOrNull(fixedTimeText)
+                            if (normalized == null) {
+                                validationError = "Формат часу має бути HH:mm (наприклад, 08:30)"
+                                return@Button
+                            }
+                            val days = intervalDaysText.trim().toIntOrNull()?.takeIf { it >= 1 }
+                            if (days == null) {
+                                validationError = "Вкажіть коректний інтервал днів (від 1 і більше)"
+                                return@Button
+                            }
+                            val validStart = runCatching { LocalDate.parse(intervalStartDateText.trim()) }.getOrNull()
+                            if (validStart == null) {
+                                validationError = "Некоректна дата початку (формат YYYY-MM-DD)"
+                                return@Button
+                            }
+                            ScheduleRule.EveryNDays(time = normalized, intervalDays = days, startDate = validStart.toString())
+                        }
+
+                        ScheduleKind.ONE_OFF -> {
+                            val normalized = TimeInputValidator.normalizeTimeOrNull(fixedTimeText)
+                            if (normalized == null) {
+                                validationError = "Формат часу має бути HH:mm (наприклад, 08:30)"
+                                return@Button
+                            }
+                            val validDate = runCatching { LocalDate.parse(oneOffDateText.trim()) }.getOrNull()
+                            if (validDate == null) {
+                                validationError = "Некоректна дата (формат YYYY-MM-DD)"
+                                return@Button
+                            }
+                            ScheduleRule.OneOff(date = validDate.toString(), time = normalized)
+                        }
+
+                        ScheduleKind.ANCHOR -> {
+                            val offset = offsetMinutesText.trim().toIntOrNull()
+                            if (selectedAnchorId.isBlank() || offset == null) {
+                                validationError = "Оберіть якір та коректні хвилини"
+                                return@Button
+                            }
+                            ScheduleRule.RelativeToAnchor(anchorId = selectedAnchorId, offsetMinutes = offset)
+                        }
+
+                        ScheduleKind.HOURLY_INTERVAL -> error("Handled above")
                     }
 
                     val newTask = TaskRule(
@@ -493,7 +756,7 @@ fun TaskEditorDialog(
                         inventory = inventory,
                     )
 
-                    onSave(newTask, pendingUploads.toList())
+                    onSave(listOf(newTask), pendingUploads.toList())
                 },
             ) {
                 Text("Зберегти")
