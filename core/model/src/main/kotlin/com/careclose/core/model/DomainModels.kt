@@ -34,7 +34,20 @@ enum class CaregiverRole(val defaultTitle: String, val gender: Gender) {
     SON("Син", Gender.MALE),
     GRANDDAUGHTER("Онука", Gender.FEMALE),
     GRANDSON("Онук", Gender.MALE),
-    OTHER("Опікун", Gender.UNSPECIFIED),
+    NURSE("Медсестра", Gender.FEMALE),
+    AIDE("Сиділка", Gender.FEMALE),
+    NEIGHBOR("Сусідка", Gender.FEMALE),
+    VOLUNTEER("Волонтер", Gender.UNSPECIFIED),
+    OTHER("Опікун", Gender.UNSPECIFIED);
+
+    val isHelperRole: Boolean
+        get() = this in setOf(NURSE, AIDE, NEIGHBOR, VOLUNTEER)
+}
+
+@Serializable
+enum class CaregiverAccessLevel {
+    PRIMARY, // Головний опікун: повний доступ до налаштувань, ліків, доз та розкладу
+    HELPER,  // Допоміжний опікун (сусідка/медсестра/сиділка): тільки перегляд "Сьогодні" та відмітка виконання
 }
 
 @Serializable
@@ -211,6 +224,8 @@ data class PairingQrPayload(
     val serviceAccountJson: String,
     val familyAesKeyBase64: String,
     val createdAtUtc: String,
+    val accessLevel: CaregiverAccessLevel = CaregiverAccessLevel.PRIMARY,
+    val targetRole: CaregiverRole? = null,
 )
 
 object CareCloseJson {

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.careclose.app.ui.theme.CareCloseTheme
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.EmergencyContact
@@ -111,6 +112,13 @@ private fun CareCloseShell(app: CareCloseApplication) {
                     onRoleSelected = {},
                     onProfileConfigured = { recRole, cgRole, famName ->
                         configuredRoles = Triple(recRole, cgRole, famName)
+                        deviceConfigStore.setCaregiverAccessLevel(CaregiverAccessLevel.PRIMARY)
+                        deviceConfigStore.setCaregiverRole(cgRole)
+                    },
+                    onHelperConfigured = { helperRole, helperName ->
+                        deviceConfigStore.setCaregiverAccessLevel(CaregiverAccessLevel.HELPER)
+                        deviceConfigStore.setCaregiverRole(helperRole)
+                        deviceConfigStore.setCaregiverName(helperName)
                     },
                     onFinishOnboarding = {
                         isAddingNewProfile = false
@@ -164,6 +172,13 @@ private fun CareCloseShell(app: CareCloseApplication) {
                     },
                     onProfileConfigured = { recRole, cgRole, famName ->
                         configuredRoles = Triple(recRole, cgRole, famName)
+                        deviceConfigStore.setCaregiverAccessLevel(CaregiverAccessLevel.PRIMARY)
+                        deviceConfigStore.setCaregiverRole(cgRole)
+                    },
+                    onHelperConfigured = { helperRole, helperName ->
+                        deviceConfigStore.setCaregiverAccessLevel(CaregiverAccessLevel.HELPER)
+                        deviceConfigStore.setCaregiverRole(helperRole)
+                        deviceConfigStore.setCaregiverName(helperName)
                     },
                     onFinishOnboarding = { finishedRole ->
                         activeRole = finishedRole

@@ -57,6 +57,46 @@ class CareCloseWordingTest {
     }
 
     @Test
+    fun `formats helper caregiver roles and notes correctly`() {
+        assertEquals("Відмітити як виконано (Медсестра)", CareCloseWording.caregiverOverrideButton(CaregiverRole.NURSE))
+        assertEquals("Відмітити як виконано (Сиділка)", CareCloseWording.caregiverOverrideButton(CaregiverRole.AIDE))
+        assertEquals("Відмітити як виконано (Сусідка)", CareCloseWording.caregiverOverrideButton(CaregiverRole.NEIGHBOR))
+        assertEquals("Відмітити як виконано (Волонтер)", CareCloseWording.caregiverOverrideButton(CaregiverRole.VOLUNTEER))
+
+        assertEquals("Виконала медсестра", CareCloseWording.caregiverOverrideNote(CaregiverRole.NURSE))
+        assertEquals("Виконала медсестра (Оксана)", CareCloseWording.caregiverOverrideNote(CaregiverRole.NURSE, "Оксана"))
+        assertEquals("Перевірила сусідка (Галина)", CareCloseWording.caregiverOverrideNote(CaregiverRole.NEIGHBOR, "Галина"))
+        assertEquals("Провідала сиділка (Надія)", CareCloseWording.caregiverOverrideNote(CaregiverRole.AIDE, "Надія"))
+    }
+
+    @Test
+    fun `formats completedTaskBadge accurately with and without custom note`() {
+        val helperBadge = CareCloseWording.completedTaskBadge(
+            completedBy = com.careclose.core.model.Role.CAREGIVER,
+            completionNote = "Виконала медсестра (Оксана)",
+            recipientName = "Мама",
+            gender = Gender.FEMALE,
+        )
+        assertEquals("✓ Виконала медсестра (Оксана)", helperBadge)
+
+        val motherBadge = CareCloseWording.completedTaskBadge(
+            completedBy = com.careclose.core.model.Role.ELDER,
+            completionNote = null,
+            recipientName = "Мама",
+            gender = Gender.FEMALE,
+        )
+        assertEquals("✓ Мама прийняла", motherBadge)
+
+        val fatherBadge = CareCloseWording.completedTaskBadge(
+            completedBy = com.careclose.core.model.Role.ELDER,
+            completionNote = null,
+            recipientName = "Тато",
+            gender = Gender.MALE,
+        )
+        assertEquals("✓ Тато прийняв", fatherBadge)
+    }
+
+    @Test
     fun `formats unspecified role neutrally`() {
         val plan = samplePlan(
             recipientRole = RecipientRole.OTHER,

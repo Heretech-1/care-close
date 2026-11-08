@@ -44,13 +44,44 @@ object CareCloseWording {
     fun caregiverOverrideButton(role: CaregiverRole): String = when (role) {
         CaregiverRole.DAUGHTER, CaregiverRole.GRANDDAUGHTER -> "Відмітити як виконано (Дала ліки)"
         CaregiverRole.SON, CaregiverRole.GRANDSON -> "Відмітити як виконано (Дав ліки)"
+        CaregiverRole.NURSE -> "Відмітити як виконано (Медсестра)"
+        CaregiverRole.AIDE -> "Відмітити як виконано (Сиділка)"
+        CaregiverRole.NEIGHBOR -> "Відмітити як виконано (Сусідка)"
+        CaregiverRole.VOLUNTEER -> "Відмітити як виконано (Волонтер)"
         CaregiverRole.OTHER -> "Відмітити як виконано (Я поруч)"
     }
 
-    fun caregiverOverrideNote(role: CaregiverRole): String = when (role) {
-        CaregiverRole.DAUGHTER, CaregiverRole.GRANDDAUGHTER -> "Дала особисто (${role.defaultTitle})"
-        CaregiverRole.SON, CaregiverRole.GRANDSON -> "Дав особисто (${role.defaultTitle})"
-        CaregiverRole.OTHER -> "Відмічено опікуном"
+    fun caregiverOverrideNote(role: CaregiverRole, customName: String? = null): String {
+        val nameSuffix = customName?.trim()?.takeIf { it.isNotEmpty() }?.let { " ($it)" } ?: ""
+        return when (role) {
+            CaregiverRole.DAUGHTER, CaregiverRole.GRANDDAUGHTER -> "Дала особисто (${role.defaultTitle}$nameSuffix)"
+            CaregiverRole.SON, CaregiverRole.GRANDSON -> "Дав особисто (${role.defaultTitle}$nameSuffix)"
+            CaregiverRole.NURSE -> "Виконала медсестра$nameSuffix"
+            CaregiverRole.AIDE -> "Провідала сиділка$nameSuffix"
+            CaregiverRole.NEIGHBOR -> "Перевірила сусідка$nameSuffix"
+            CaregiverRole.VOLUNTEER -> "Допоміг волонтер$nameSuffix"
+            CaregiverRole.OTHER -> "Відмічено опікуном$nameSuffix"
+        }
+    }
+
+    fun completedTaskBadge(
+        completedBy: com.careclose.core.model.Role?,
+        completionNote: String?,
+        recipientName: String,
+        gender: Gender,
+    ): String {
+        if (!completionNote.isNullOrBlank()) {
+            return "✓ $completionNote"
+        }
+        return when (completedBy) {
+            com.careclose.core.model.Role.ELDER -> when (gender) {
+                Gender.FEMALE -> "✓ $recipientName прийняла"
+                Gender.MALE -> "✓ $recipientName прийняв"
+                Gender.UNSPECIFIED -> "✓ Виконано підопічним"
+            }
+            com.careclose.core.model.Role.CAREGIVER -> "✓ Відмічено опікуном"
+            null -> "✓ Виконано"
+        }
     }
 
     fun onlinePresenceStatus(

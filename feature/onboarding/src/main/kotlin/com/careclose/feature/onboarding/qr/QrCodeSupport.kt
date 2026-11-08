@@ -47,21 +47,7 @@ import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import java.util.concurrent.Executors
 
-object QrBitmapGenerator {
-    fun generate(content: String, sizePx: Int = 640): Bitmap {
-        val bitMatrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
-        val pixels = IntArray(sizePx * sizePx)
-        for (y in 0 until sizePx) {
-            val offset = y * sizePx
-            for (x in 0 until sizePx) {
-                pixels[offset + x] = if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE
-            }
-        }
-        return Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
-            setPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
-        }
-    }
-}
+typealias QrBitmapGenerator = com.careclose.core.sync.pairing.QrBitmapGenerator
 
 object GoogleDriveFolderIdParser {
     private val folderRegex = Regex("""/folders/([a-zA-Z0-9_-]+)""")

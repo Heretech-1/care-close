@@ -48,6 +48,7 @@ data class ResolvedDailyTask(
     val completedEventId: String?,
     val snoozedUntil: Instant?,
     val anchorTitle: String?,
+    val completionNote: String? = null,
 )
 
 data class DailyTimeline(
@@ -225,6 +226,7 @@ object DailyScheduleResolver {
         var completedEventId: String? = null
         var completedAt: Instant? = null
         var completedBy: Role? = null
+        var completionNote: String? = null
         var isSkipped = false
         var snoozedUntil: Instant? = null
 
@@ -236,6 +238,7 @@ object DailyScheduleResolver {
                     completedEventId = event.eventId
                     completedAt = eventTime
                     completedBy = event.actorRole
+                    completionNote = event.note
                     isSkipped = false
                     snoozedUntil = null
                 }
@@ -245,6 +248,7 @@ object DailyScheduleResolver {
                         completedEventId = null
                         completedAt = null
                         completedBy = null
+                        completionNote = null
                     }
                 }
 
@@ -298,6 +302,7 @@ object DailyScheduleResolver {
             completedEventId = completedEventId,
             snoozedUntil = snoozedUntil,
             anchorTitle = anchorTitle,
+            completionNote = completionNote,
         )
     }
 

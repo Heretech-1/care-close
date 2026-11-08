@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.FamilyManifest
 import com.careclose.core.model.PairingQrPayload
@@ -65,6 +67,7 @@ private enum class OnboardingStep {
     CAREGIVER_DRIVE_SETUP,
     ELDER_PAIRING,
     ELDER_PERMISSIONS,
+    HELPER_PAIRING,
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -78,6 +81,7 @@ fun OnboardingScreen(
     isAddingNewProfile: Boolean = false,
     onCancelAddingProfile: (() -> Unit)? = null,
     onProfileConfigured: ((RecipientRole, CaregiverRole, String) -> Unit)? = null,
+    onHelperConfigured: ((CaregiverRole, String?) -> Unit)? = null,
 ) {
     var step by remember {
         mutableStateOf(if (isAddingNewProfile) OnboardingStep.CAREGIVER_DRIVE_SETUP else OnboardingStep.CHOOSE_ROLE)
@@ -99,6 +103,10 @@ fun OnboardingScreen(
                     onPickCaregiver = {
                         onRoleSelected(Role.CAREGIVER)
                         step = OnboardingStep.CAREGIVER_DRIVE_SETUP
+                    },
+                    onPickHelper = {
+                        onRoleSelected(Role.CAREGIVER)
+                        step = OnboardingStep.HELPER_PAIRING
                     },
                 )
             }
@@ -133,6 +141,18 @@ fun OnboardingScreen(
                     },
                 )
             }
+
+            OnboardingStep.HELPER_PAIRING -> {
+                HelperPairingStep(
+                    syncConfigStore = syncConfigStore,
+                    onCreateSyncEngineForPayload = onCreateSyncEngineForPayload,
+                    onBack = { step = OnboardingStep.CHOOSE_ROLE },
+                    onComplete = { role, name ->
+                        onHelperConfigured?.invoke(role, name)
+                        onFinishOnboarding(Role.CAREGIVER)
+                    },
+                )
+            }
         }
     }
 }
@@ -141,6 +161,7 @@ fun OnboardingScreen(
 private fun ChooseRoleStep(
     onPickElder: () -> Unit,
     onPickCaregiver: () -> Unit,
+    onPickHelper: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -162,7 +183,7 @@ private fun ChooseRoleStep(
             onClick = onPickElder,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp),
+                .height(72.dp),
         ) {
             Text("Я — Підопічний (Літня людина)", style = MaterialTheme.typography.titleLarge)
         }
@@ -171,9 +192,18 @@ private fun ChooseRoleStep(
             onClick = onPickCaregiver,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp),
+                .height(72.dp),
         ) {
-            Text("Я — Опікун (Дорослий)", style = MaterialTheme.typography.titleLarge)
+            Text("Я — Головний опікун (Дорослий)", style = MaterialTheme.typography.titleMedium)
+        }
+
+        OutlinedButton(
+            onClick = onPickHelper,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp),
+        ) {
+            Text("Я — Помічник (Сусідка / Медсестра / Сиділка)", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -523,3 +553,160 @@ private fun ElderPairingStep(
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HelperPairingStep(
+    syncConfigStore: SyncConfigStore,
+    onCreateSyncEngineForPayload: (PairingQrPayload) -> SyncEngine,
+    onBack: () -> Unit,
+    onComplete: (CaregiverRole, String?) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var showScanner by remember { mutableStateOf(false) }
+    var manualCode by remember { mutableStateOf("") }
+    var isSyncing by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+    var pairedPayload by remember { mutableStateOf<PairingQrPayload?>(null) }
+
+    var helperRole by remember { mutableStateOf(CaregiverRole.NEIGHBOR) }
+    var helperName by remember { mutableStateOf("") }
+
+    fun applyPairingCode(rawCode: String) {
+        isSyncing = true
+        errorText = null
+        scope.launch {
+            val result = runCatching {
+                val payload = PairingPayloadCodec.decode(rawCode)
+                val engine = onCreateSyncEngineForPayload(payload)
+                withContext(Dispatchers.IO) {
+                    engine.pullAll()
+                }
+                syncConfigStore.savePairingPayload(payload)
+                payload
+            }
+            isSyncing = false
+            result.onSuccess { payload ->
+                pairedPayload = payload
+                payload.targetRole?.let { helperRole = it }
+            }.onFailure {
+                errorText = "Помилка коду помічника: ${it.message}"
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        TextButton(onClick = onBack) { Text("← Назад до вибору ролі") }
+
+        Text(
+            text = "Підключення помічника",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+
+        val currentPaired = pairedPayload
+        if (currentPaired == null) {
+            Text(
+                text = "Відскануйте QR-код помічника, наданий головним опікуном (донькою/сином):",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            if (showScanner) {
+                CameraQrScanner(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                    onQrDecoded = { decoded ->
+                        showScanner = false
+                        manualCode = decoded
+                        applyPairingCode(decoded)
+                    },
+                )
+                OutlinedButton(
+                    onClick = { showScanner = false },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Закрити камеру")
+                }
+            } else {
+                Button(
+                    onClick = { showScanner = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                ) {
+                    Text("Сканувати QR-код камерою", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            OutlinedTextField(
+                value = manualCode,
+                onValueChange = { manualCode = it },
+                label = { Text("Або вставте код прив'язки (CARECLOSE1:...)") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3,
+            )
+
+            errorText?.let {
+                Text(text = it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = { applyPairingCode(manualCode) },
+                enabled = manualCode.isNotBlank() && !isSyncing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Підключитися")
+                }
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("✓ Успішно підключено!", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Підопічний / Сім'я: ${currentPaired.familyName}")
+                }
+            }
+
+            Text("Хто ви для підопічного?", fontWeight = FontWeight.SemiBold)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    CaregiverRole.NEIGHBOR to "Сусідка / Сусід",
+                    CaregiverRole.AIDE to "Сиділка",
+                    CaregiverRole.NURSE to "Медсестра",
+                    CaregiverRole.VOLUNTEER to "Волонтер",
+                    CaregiverRole.OTHER to "Інше",
+                ).forEach { (role, label) ->
+                    FilterChip(
+                        selected = helperRole == role,
+                        onClick = { helperRole = role },
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = helperName,
+                onValueChange = { helperName = it },
+                label = { Text("Ваше ім'я (наприклад, Оксана, Марія)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            Button(
+                onClick = { onComplete(helperRole, helperName.trim().ifEmpty { null }) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+            ) {
+                Text("Перейти до розкладу")
+            }
+        }
+    }
+}
+
