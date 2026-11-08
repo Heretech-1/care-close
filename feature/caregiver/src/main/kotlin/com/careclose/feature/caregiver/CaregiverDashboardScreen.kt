@@ -100,6 +100,7 @@ import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.InventoryCalculator
 import com.careclose.core.model.engine.InventoryStatus
+import com.careclose.core.model.engine.PlanVersionHelper
 import com.careclose.core.model.engine.PresenceEvaluator
 import com.careclose.core.model.engine.PresenceHealth
 import com.careclose.core.model.engine.PresenceWarning
@@ -226,10 +227,12 @@ fun CaregiverDashboardScreen(
                     }
                     engine.publishPlan(updatedPlan)
                 }
-                statusBanner = "План v${updatedPlan.planVersion} опубліковано на Google Drive"
+                val versionTime = PlanVersionHelper.formatTimeOnly(updatedPlan.planVersion, updatedPlan.safeZoneId)
+                statusBanner = "План від $versionTime опубліковано на Google Drive"
             } else {
                 repository.saveActivePlan(updatedPlan)
-                statusBanner = "План v${updatedPlan.planVersion} збережено локально"
+                val versionTime = PlanVersionHelper.formatTimeOnly(updatedPlan.planVersion, updatedPlan.safeZoneId)
+                statusBanner = "План від $versionTime збережено локально"
             }
             currentInstant = Instant.now()
             onScheduleOrSyncUpdated()
@@ -549,7 +552,7 @@ fun CaregiverDashboardScreen(
                         },
                         onDeleteTask = { target ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 tasks = plan.tasks.filterNot { it.id == target.id },
                             )
@@ -594,7 +597,7 @@ fun CaregiverDashboardScreen(
                                 }
                             }
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 tasks = updatedTasks,
                             )
@@ -620,7 +623,7 @@ fun CaregiverDashboardScreen(
                         onOpenShareHelperDialog = { showShareHelperDialog = true },
                         onUpdateContact = { contact ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 emergencyContact = contact,
                                 caregiverPhone = contact.phone,
@@ -632,7 +635,7 @@ fun CaregiverDashboardScreen(
                         },
                         onUpdateRoles = { recRole, cgRole, customName ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 recipientRole = recRole,
                                 caregiverRole = cgRole,
@@ -645,7 +648,7 @@ fun CaregiverDashboardScreen(
                         },
                         onUpdateQuickReturnMode = { newMode ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 quickReturnMode = newMode,
                             )
@@ -657,7 +660,7 @@ fun CaregiverDashboardScreen(
                         },
                         onUpdateFloatingButtonSize = { newSize ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 floatingButtonSize = newSize,
                             )
@@ -669,7 +672,7 @@ fun CaregiverDashboardScreen(
                         },
                         onUpdateElderTheme = { newTheme ->
                             val updated = plan.copy(
-                                planVersion = plan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(plan.planVersion, zoneId = plan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 elderThemeMode = newTheme,
                             )
@@ -721,7 +724,7 @@ fun CaregiverDashboardScreen(
                     }
                 }
                 val updatedPlan = currentPlan.copy(
-                    planVersion = currentPlan.planVersion + 1L,
+                    planVersion = PlanVersionHelper.nextVersion(currentPlan.planVersion, zoneId = currentPlan.safeZoneId),
                     effectiveFromUtc = Instant.now().toString(),
                     tasks = newTasks,
                 )
@@ -740,7 +743,7 @@ fun CaregiverDashboardScreen(
             onSave = { oneOffTask ->
                 showOneOffDialog = false
                 val updatedPlan = currentPlan.copy(
-                    planVersion = currentPlan.planVersion + 1L,
+                    planVersion = PlanVersionHelper.nextVersion(currentPlan.planVersion, zoneId = currentPlan.safeZoneId),
                     effectiveFromUtc = Instant.now().toString(),
                     tasks = currentPlan.tasks + oneOffTask,
                 )
@@ -759,7 +762,7 @@ fun CaregiverDashboardScreen(
             onAdd = { anchor ->
                 showAnchorDialog = false
                 val updated = currentPlan.copy(
-                    planVersion = currentPlan.planVersion + 1L,
+                    planVersion = PlanVersionHelper.nextVersion(currentPlan.planVersion, zoneId = currentPlan.safeZoneId),
                     effectiveFromUtc = Instant.now().toString(),
                     anchors = currentPlan.anchors + anchor,
                 )
@@ -822,7 +825,7 @@ fun CaregiverDashboardScreen(
                         anchorConfirmDelete = null
                         if (currentPlan != null) {
                             val updated = currentPlan.copy(
-                                planVersion = currentPlan.planVersion + 1L,
+                                planVersion = PlanVersionHelper.nextVersion(currentPlan.planVersion, zoneId = currentPlan.safeZoneId),
                                 effectiveFromUtc = Instant.now().toString(),
                                 anchors = currentPlan.anchors.filterNot { it.id == toDeleteId },
                             )
@@ -1279,8 +1282,9 @@ private fun ScheduleEditorContent(
         }
 
         item {
+            val friendlyVersion = PlanVersionHelper.formatFriendly(plan.planVersion, plan.effectiveFromUtc, plan.safeZoneId)
             Text(
-                text = "Ліки та справи (версія плану v${plan.planVersion})",
+                text = "Ліки та справи (графік: $friendlyVersion)",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -1605,7 +1609,9 @@ private fun CaregiverSettingsContent(
                 } else {
                     Text("Google Drive не налаштовано (локальний режим)")
                 }
-                Text("Активна версія плану: v$planVersion", style = MaterialTheme.typography.bodySmall)
+                val friendlyVersion = PlanVersionHelper.formatFriendly(planVersion, plan.effectiveFromUtc, plan.safeZoneId)
+                val shortCode = PlanVersionHelper.formatShortCode(planVersion, plan.effectiveFromUtc, plan.safeZoneId)
+                Text("Активна версія плану: $friendlyVersion ($shortCode)", style = MaterialTheme.typography.bodySmall)
             }
         }
 

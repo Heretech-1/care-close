@@ -37,6 +37,7 @@ import com.careclose.core.model.Role
 import com.careclose.core.model.ScheduleRule
 import com.careclose.core.model.TaskRule
 import com.careclose.core.model.TaskType
+import com.careclose.core.model.engine.PlanVersionHelper
 import com.careclose.core.sync.AndroidSyncConfigStore
 import com.careclose.core.sync.SyncEngine
 import com.careclose.core.sync.crypto.FamilyCrypto
@@ -339,7 +340,7 @@ private fun createSamplePlan(
     recipientName: String? = null,
 ): PlanSnapshot {
     return PlanSnapshot(
-        planVersion = 1L,
+        planVersion = PlanVersionHelper.nextVersion(),
         effectiveFromUtc = Instant.now().toString(),
         timezone = ZoneId.systemDefault().id,
         recipientRole = recipientRole,
