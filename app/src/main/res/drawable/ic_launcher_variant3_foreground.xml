@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Variant 3: Guarding Home Beacon -->
+    <!-- Signal waves of care (Top) -->
+    <path
+        android:strokeColor="#00BFA5"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,24 C48,16 60,16 70,24" />
+    <path
+        android:strokeColor="#00BFA5"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M44,30 C50,25 58,25 64,30" />
+
+    <!-- Cozy House Body -->
+    <path
+        android:fillColor="#E0F2F1"
+        android:strokeColor="#004D40"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:pathData="M54,34 L28,54 L36,54 L36,80 L72,80 L72,54 L80,54 Z" />
+
+    <!-- Heart Window in House Center -->
+    <path
+        android:fillColor="#FF5252"
+        android:pathData="M54,58 C51,52 44,53 43,59 C42,65 50,71 54,75 C58,71 66,65 65,59 C64,53 57,52 54,58 Z" />
+
+    <!-- Protective Base Foundation Line -->
+    <path
+        android:strokeColor="#004D40"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M24,84 L84,84" />
+</vector>

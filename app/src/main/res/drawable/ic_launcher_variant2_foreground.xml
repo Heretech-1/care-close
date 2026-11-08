@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Variant 2: Sunburst Daily Rhythm -->
+    <!-- Soft warm sun halo -->
+    <path
+        android:fillColor="#33FFB300"
+        android:pathData="M54,20 C72.78,20 88,35.22 88,54 C88,72.78 72.78,88 54,88 C35.22,88 20,72.78 20,54 C20,35.22 35.22,20 54,20 Z" />
+
+    <!-- Three Rhythm Rays (Morning, Noon, Evening) -->
+    <!-- Morning ray (top-left) -->
+    <path
+        android:strokeColor="#FFA000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M32,32 L22,22" />
+    <!-- Noon ray (top) -->
+    <path
+        android:strokeColor="#FFA000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M54,18 L54,8" />
+    <!-- Evening ray (top-right) -->
+    <path
+        android:strokeColor="#FFA000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M76,32 L86,22" />
+
+    <!-- Sun Disc (Clock Base) -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:strokeColor="#FFA000"
+        android:strokeWidth="3.5"
+        android:pathData="M54,28 C68.36,28 80,39.64 80,54 C80,68.36 68.36,80 54,80 C39.64,80 28,68.36 28,54 C28,39.64 39.64,28 54,28 Z" />
+
+    <!-- Clock Center Dot -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M54,51 C55.66,51 57,52.34 57,54 C57,55.66 55.66,57 54,57 C52.34,57 51,55.66 51,54 C51,52.34 52.34,51 54,51 Z" />
+
+    <!-- Clock Hands forming Caring Checkmark -->
+    <path
+        android:strokeColor="#1976D2"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M42,52 L51,62 L68,44" />
+</vector>
