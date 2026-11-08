@@ -6,15 +6,22 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
@@ -77,6 +85,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.careclose.core.database.entity.MediaCacheEntity
 import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
@@ -484,15 +493,24 @@ fun CaregiverDashboardScreen(
                             now = currentInstant,
                         )
                     }
+                    val inventoryStatuses = remember(plan, allEvents) {
+                        InventoryCalculator.calculate(plan, allEvents)
+                    }
+                    val lowStockItems = remember(inventoryStatuses) {
+                        inventoryStatuses.filter { it.isLowStock || ((it.estimatedDaysRemaining ?: Int.MAX_VALUE) <= 3) }
+                    }
                     TodayDashboardContent(
                         plan = plan,
                         timeline = timeline,
                         selectedDate = selectedDate,
                         presenceHealth = presenceHealth,
+                        lowStockItems = lowStockItems,
                         activeCaregiverRole = myCaregiverRole,
-                        onPrevDay = { selectedDate = selectedDate.minusDays(1) },
+                        onSelectDate = { selectedDate = it },
+                        onPrevWeek = { selectedDate = selectedDate.minusWeeks(1) },
+                        onNextWeek = { selectedDate = selectedDate.plusWeeks(1) },
                         onToday = { selectedDate = LocalDate.now(planZone) },
-                        onNextDay = { selectedDate = selectedDate.plusDays(1) },
+                        onNavigateToInventory = { activeTab = CaregiverTab.INVENTORY },
                         onOverrideTaken = { task ->
                             scope.launch {
                                 repository.recordLocalEvent(
@@ -907,10 +925,13 @@ private fun TodayDashboardContent(
     timeline: com.careclose.core.model.engine.DailyTimeline,
     selectedDate: LocalDate,
     presenceHealth: PresenceHealth,
+    lowStockItems: List<InventoryStatus> = emptyList(),
     activeCaregiverRole: CaregiverRole = plan.caregiverRole,
-    onPrevDay: () -> Unit,
+    onSelectDate: (LocalDate) -> Unit,
+    onPrevWeek: () -> Unit,
+    onNextWeek: () -> Unit,
     onToday: () -> Unit,
-    onNextDay: () -> Unit,
+    onNavigateToInventory: () -> Unit,
     onOverrideTaken: (ResolvedDailyTask) -> Unit,
     onUndoCompleted: (ResolvedDailyTask) -> Unit,
 ) {
@@ -926,36 +947,327 @@ private fun TodayDashboardContent(
             PresenceHealthCard(plan = plan, health = presenceHealth)
         }
 
+        if (lowStockItems.isNotEmpty()) {
+            item {
+                LowStockAlertCard(
+                    lowStockItems = lowStockItems,
+                    onNavigateToInventory = onNavigateToInventory,
+                )
+            }
+        }
+
         item {
+            WeekDateStrip(
+                selectedDate = selectedDate,
+                onSelectDate = onSelectDate,
+                onPrevWeek = onPrevWeek,
+                onNextWeek = onNextWeek,
+                onToday = onToday,
+            )
+        }
+
+        if (timeline.tasks.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "На цей день немає запланованих справ",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        } else {
+            itemsIndexed(timeline.tasks, key = { _, it -> it.task.id }) { index, item ->
+                TimelineNodeRow(
+                    isFirst = index == 0,
+                    isLast = index == timeline.tasks.lastIndex,
+                    status = item.status,
+                    isMissingAnchor = item.isMissingAnchor,
+                ) {
+                    CaregiverTimelineTaskCard(
+                        plan = plan,
+                        item = item,
+                        timeFormatter = timeFormatter,
+                        activeCaregiverRole = activeCaregiverRole,
+                        onOverrideTaken = { onOverrideTaken(item) },
+                        onUndoCompleted = { onUndoCompleted(item) },
+                    )
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun LowStockAlertCard(
+    lowStockItems: List<InventoryStatus>,
+    onNavigateToInventory: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+        border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("💊", fontSize = 24.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Закінчуються ліки (${lowStockItems.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFE65100),
+                )
+                val summary = lowStockItems.joinToString(", ") { status ->
+                    val days = status.estimatedDaysRemaining?.let { " ($it дн.)" } ?: ""
+                    "${status.title}$days"
+                }
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF5D4037),
+                    maxLines = 2,
+                )
+            }
+            TextButton(
+                onClick = onNavigateToInventory,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE65100)),
+            ) {
+                Text("Аптечка →", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekDateStrip(
+    selectedDate: LocalDate,
+    onSelectDate: (LocalDate) -> Unit,
+    onPrevWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onToday: () -> Unit,
+) {
+    val monday = remember(selectedDate) {
+        selectedDate.minusDays((selectedDate.dayOfWeek.value - 1).toLong())
+    }
+    val today = remember { LocalDate.now() }
+
+    val monthFormatter = remember {
+        DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale("uk", "UA"))
+    }
+    val monthTitle = remember(selectedDate) {
+        val raw = monthFormatter.format(selectedDate)
+        raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("uk", "UA")) else it.toString() }
+    }
+
+    val dayNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedButton(onClick = onPrevDay) { Text("← Вчора") }
-                TextButton(onClick = onToday) {
+                Text(
+                    text = monthTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    if (selectedDate != today) {
+                        TextButton(
+                            onClick = onToday,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        ) {
+                            Text("Сьогодні", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onPrevWeek,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Text("‹", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+
+                    IconButton(
+                        onClick = onNextWeek,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Text("›", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                for (i in 0..6) {
+                    val date = monday.plusDays(i.toLong())
+                    val isSelected = date == selectedDate
+                    val isCurrentDay = date == today
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp)
+                            .clickable { onSelectDate(date) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = when {
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            isCurrentDay -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else -> Color.Transparent
+                        },
+                        border = if (isCurrentDay && !isSelected) {
+                            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                        } else null,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = dayNames[i],
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = date.dayOfMonth.toString(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected || isCurrentDay) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            )
+                            if (isCurrentDay && isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .background(MaterialTheme.colorScheme.onPrimary, CircleShape),
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineNodeRow(
+    isFirst: Boolean,
+    isLast: Boolean,
+    status: ResolvedTaskStatus,
+    isMissingAnchor: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .width(24.dp)
+                .fillMaxHeight(),
+        ) {
+            if (!isFirst) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .height(14.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant),
+                )
+            } else {
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            val (nodeColor, nodeIcon) = when {
+                isMissingAnchor -> Color(0xFFD32F2F) to "⚠️"
+                status == ResolvedTaskStatus.COMPLETED -> Color(0xFF2E7D32) to "✓"
+                status == ResolvedTaskStatus.MISSED_ONLINE || status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFC62828) to "!"
+                status == ResolvedTaskStatus.DUE_NOW -> Color(0xFFE65100) to "●"
+                status == ResolvedTaskStatus.WAITING_FOR_ANCHOR -> Color(0xFF0277BD) to "⚓"
+                status == ResolvedTaskStatus.SNOOZED -> Color(0xFFF57C00) to "⏱"
+                else -> MaterialTheme.colorScheme.outline to "○"
+            }
+
+            Surface(
+                modifier = Modifier.size(22.dp),
+                shape = CircleShape,
+                color = nodeColor.copy(alpha = 0.15f),
+                border = BorderStroke(2.dp, nodeColor),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = selectedDate.toString(),
-                        style = MaterialTheme.typography.titleMedium,
+                        text = nodeIcon,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
+                        color = nodeColor,
                     )
                 }
-                OutlinedButton(onClick = onNextDay) { Text("Далі →") }
+            }
+
+            if (!isLast) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .weight(1f)
+                        .background(MaterialTheme.colorScheme.outlineVariant),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
 
-        items(timeline.tasks, key = { it.task.id }) { item ->
-            CaregiverTimelineTaskCard(
-                plan = plan,
-                item = item,
-                timeFormatter = timeFormatter,
-                activeCaregiverRole = activeCaregiverRole,
-                onOverrideTaken = { onOverrideTaken(item) },
-                onUndoCompleted = { onUndoCompleted(item) },
-            )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = if (isLast) 0.dp else 4.dp),
+        ) {
+            content()
         }
-
-        item { Spacer(modifier = Modifier.height(24.dp)) }
     }
 }
 
@@ -1167,6 +1479,13 @@ private fun CaregiverTimelineTaskCard(
     }
 }
 
+private enum class TaskScheduleFilter(val label: String) {
+    ALL("Всі"),
+    MEDICATION("💊 Ліки"),
+    ROUTINE("📋 Рутина"),
+    ONE_OFF("⏰ Одноразові"),
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScheduleEditorContent(
@@ -1179,6 +1498,17 @@ private fun ScheduleEditorContent(
     onAddAnchor: () -> Unit,
     onDeleteAnchor: (String) -> Unit,
 ) {
+    var activeFilter by remember { mutableStateOf(TaskScheduleFilter.ALL) }
+
+    val filteredTasks = remember(plan.tasks, activeFilter) {
+        when (activeFilter) {
+            TaskScheduleFilter.ALL -> plan.tasks
+            TaskScheduleFilter.MEDICATION -> plan.tasks.filter { it.type == com.careclose.core.model.TaskType.MEDICATION && it.schedule !is ScheduleRule.OneOff }
+            TaskScheduleFilter.ROUTINE -> plan.tasks.filter { it.type != com.careclose.core.model.TaskType.MEDICATION && it.schedule !is ScheduleRule.OneOff }
+            TaskScheduleFilter.ONE_OFF -> plan.tasks.filter { it.schedule is ScheduleRule.OneOff }
+        }
+    }
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -1290,7 +1620,40 @@ private fun ScheduleEditorContent(
             )
         }
 
-        items(plan.tasks, key = { it.id }) { task ->
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TaskScheduleFilter.values().forEach { filter ->
+                    FilterChip(
+                        selected = activeFilter == filter,
+                        onClick = { activeFilter = filter },
+                        label = { Text(filter.label, style = MaterialTheme.typography.labelSmall) },
+                    )
+                }
+            }
+        }
+
+        if (filteredTasks.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "У цій категорії немає завдань",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        items(filteredTasks, key = { it.id }) { task ->
             val isMissingAnchor = task.isMissingAnchor(plan.anchors)
             Card(
                 modifier = Modifier.fillMaxWidth(),

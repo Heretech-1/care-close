@@ -422,6 +422,25 @@ fun ElderDashboardScreen(
                 }
             }
 
+            val upcomingTasks = timeline.tasks.filter { item ->
+                item.task.id != activeFocusTask?.task?.id &&
+                    item.status != ResolvedTaskStatus.COMPLETED &&
+                    !item.isMissingAnchor
+            }
+            if (upcomingTasks.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Ще заплановано на сьогодні",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                items(upcomingTasks, key = { "upcoming_${it.task.id}" }) { upcomingItem ->
+                    UpcomingTaskRow(item = upcomingItem, timeFormatter = clockFormatter)
+                }
+            }
+
             val completedToday = timeline.tasks.filter { it.status == ResolvedTaskStatus.COMPLETED }
             if (completedToday.isNotEmpty()) {
                 item {
@@ -429,7 +448,7 @@ fun ElderDashboardScreen(
                         text = "Вже зроблено сьогодні",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1B5E20),
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
                 items(completedToday, key = { "done_${it.task.id}" }) { doneItem ->
@@ -738,6 +757,68 @@ private fun CompletedTaskRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UpcomingTaskRow(
+    item: ResolvedDailyTask,
+    timeFormatter: DateTimeFormatter,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f).padding(end = 8.dp),
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    val timeLabel = item.scheduledAt?.let { timeFormatter.format(it) }
+                        ?: "Після: ${item.anchorTitle ?: "події"}"
+                    Text(
+                        text = timeLabel,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = item.task.title,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    item.task.doseLabel?.let { dose ->
+                        Text(
+                            text = dose,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Text(
+                text = if (item.task.type == com.careclose.core.model.TaskType.MEDICATION) "💊" else "📋",
+                fontSize = 20.sp,
+            )
         }
     }
 }
