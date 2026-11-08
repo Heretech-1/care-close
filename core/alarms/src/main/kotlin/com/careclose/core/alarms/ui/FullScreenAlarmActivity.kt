@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -295,6 +296,8 @@ private fun FullScreenAlarmContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(88.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp, pressedElevation = 2.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
                     ) {
                         Text(
@@ -302,6 +305,7 @@ private fun FullScreenAlarmContent(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
+                            letterSpacing = 0.5.sp,
                         )
                     }
 
@@ -309,13 +313,15 @@ private fun FullScreenAlarmContent(
                         onClick = { scope.launch { onSnooze10Min() } },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(72.dp),
+                            .height(68.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
                     ) {
                         Text(
                             text = "НАГАДАТИ ЧЕРЕЗ 10 ХВ",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White,
                         )
                     }

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer caring hands / heart silhouette (White with soft transparency) -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M54,28 C45,18 30,20 26,34 C22,48 38,64 54,78 C70,64 86,48 82,34 C78,20 63,18 54,28 Z" />
+
+    <!-- Protective caring shield / base -->
+    <path
+        android:fillColor="#E0F2F1"
+        android:pathData="M54,34 C47,26 35,28 32,38 C29,48 42,61 54,72 C66,61 79,48 76,38 C73,28 61,26 54,34 Z" />
+
+    <!-- Heart core in warm coral -->
+    <path
+        android:fillColor="#FF7043"
+        android:pathData="M54,40 C49,34 40,35 38,42 C36,49 45,58 54,66 C63,58 72,49 70,42 C68,35 59,34 54,40 Z" />
+
+    <!-- Stylized pill capsule center: Left half White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,47 C44.3,47 43,48.3 43,50 L43,56 C43,57.7 44.3,59 46,59 L54,59 L54,47 L46,47 Z" />
+
+    <!-- Stylized pill capsule center: Right half Teal-emerald -->
+    <path
+        android:fillColor="#004D40"
+        android:pathData="M54,47 L62,47 C63.7,47 65,48.3 65,50 L65,56 C65,57.7 63.7,59 62,59 L54,59 L54,47 Z" />
+
+    <!-- Capsule center divider line -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1"
+        android:pathData="M54,47 L54,59" />
+
+    <!-- Little checkmark of completed care -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M50,53 L53,56 L59,49" />
+</vector>

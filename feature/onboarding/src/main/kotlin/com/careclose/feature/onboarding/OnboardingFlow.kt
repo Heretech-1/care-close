@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -183,9 +185,11 @@ private fun ChooseRoleStep(
             onClick = onPickElder,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp),
+                .height(76.dp),
+            shape = RoundedCornerShape(20.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
         ) {
-            Text("Я — Підопічний (Літня людина)", style = MaterialTheme.typography.titleLarge)
+            Text("🧓  Я — Підопічний (Літня людина)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
 
         OutlinedButton(
@@ -193,8 +197,9 @@ private fun ChooseRoleStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp),
+            shape = RoundedCornerShape(20.dp),
         ) {
-            Text("Я — Головний опікун (Дорослий)", style = MaterialTheme.typography.titleMedium)
+            Text("📱  Я — Головний опікун (Дорослий)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
 
         OutlinedButton(
@@ -202,8 +207,9 @@ private fun ChooseRoleStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp),
+            shape = RoundedCornerShape(20.dp),
         ) {
-            Text("Я — Помічник (Сусідка / Медсестра / Сиділка)", style = MaterialTheme.typography.titleMedium)
+            Text("🤝  Я — Помічник (Сусідка / Медсестра)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }

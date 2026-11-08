@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -43,6 +45,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -237,14 +240,36 @@ fun CaregiverDashboardScreen(
                     } else ""
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "CareClose · $recipientName$roleBadge",
+                            text = "CareClose",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                         if (accessLevel == CaregiverAccessLevel.PRIMARY) {
-                            IconButton(onClick = { profileMenuExpanded = true }) {
-                                Icon(Icons.Rounded.ArrowDropDown, contentDescription = "Вибір підопічного")
+                            Surface(
+                                onClick = { profileMenuExpanded = true },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                ) {
+                                    Text(
+                                        text = recipientName,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                    Icon(
+                                        Icons.Rounded.ArrowDropDown,
+                                        contentDescription = "Вибір підопічного",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
                             }
                             DropdownMenu(
                                 expanded = profileMenuExpanded,
@@ -274,6 +299,19 @@ fun CaregiverDashboardScreen(
                                         profileMenuExpanded = false
                                         onAddNewElderProfile()
                                     },
+                                )
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                            ) {
+                                Text(
+                                    text = "$recipientName$roleBadge",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 )
                             }
                         }
@@ -703,24 +741,67 @@ private fun PresenceHealthCard(plan: PlanSnapshot, health: PresenceHealth) {
     val hasWarnings = health.warnings.isNotEmpty()
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (hasWarnings) Color(0xFFFFF3E0) else Color(0xFFE8F5E9),
+            containerColor = if (hasWarnings) Color(0xFFFFF8E1) else Color(0xFFF1F8E9),
         ),
+        border = BorderStroke(1.dp, if (hasWarnings) Color(0xFFFFCC80) else Color(0xFFC8E6C9)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val statusTitle = CareCloseWording.onlinePresenceStatus(
                 plan = plan,
                 isOnline = health.isOnline,
                 minutesSinceLastSeen = health.minutesSinceLastSeen,
             )
-            Text(text = statusTitle, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = statusTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1B5E20),
+                )
+            }
 
             if (health.batteryPercent != null) {
-                val chargeLabel = if (health.isCharging == true) " (заряджається)" else ""
-                Text(
-                    text = "Батарея: ${health.batteryPercent}%$chargeLabel · Гучність будильника: ${health.alarmVolumePercent ?: "?"}%",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val chargeLabel = if (health.isCharging == true) " ⚡" else ""
+                    Surface(
+                        color = Color.White.copy(alpha = 0.85f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "Батарея", style = MaterialTheme.typography.labelMedium, color = Color(0xFF555555))
+                            Text(
+                                text = "${health.batteryPercent}%$chargeLabel",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    Surface(
+                        color = Color.White.copy(alpha = 0.85f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "Гучність", style = MaterialTheme.typography.labelMedium, color = Color(0xFF555555))
+                            Text(
+                                text = "${health.alarmVolumePercent ?: "?"}%",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
             }
 
             health.warnings.forEach { warning ->
@@ -731,7 +812,7 @@ private fun PresenceHealthCard(plan: PlanSnapshot, health: PresenceHealth) {
                     PresenceWarning.DO_NOT_DISTURB_ACTIVE -> "⚠️ Увімкнено режим «Не турбувати»"
                     PresenceWarning.OUTDATED_PLAN_VERSION -> "ℹ️ Ще не завантажено новий розклад"
                 }
-                Text(text = text, color = Color(0xFFE65100), style = MaterialTheme.typography.bodySmall)
+                Text(text = text, color = Color(0xFFD84315), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -747,17 +828,18 @@ private fun CaregiverTimelineTaskCard(
     onUndoCompleted: () -> Unit,
 ) {
     val containerColor = when (item.status) {
-        ResolvedTaskStatus.COMPLETED -> Color(0xFFE8F5E9)
+        ResolvedTaskStatus.COMPLETED -> Color(0xFFF1F8E9)
         ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFEBEE)
         ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFF3E0)
         else -> MaterialTheme.colorScheme.surface
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             val timeStr = item.scheduledAt?.let { timeFormatter.format(it) }
                 ?: "Після: ${item.anchorTitle ?: "події"}"
 
@@ -770,20 +852,38 @@ private fun CaregiverTimelineTaskCard(
                     text = "$timeStr · ${item.task.title}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                 )
-                Text(
-                    text = statusLabelUk(item),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = when (item.status) {
+                        ResolvedTaskStatus.COMPLETED -> Color(0xFFC8E6C9)
+                        ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFCDD2)
+                        ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFE0B2)
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    },
+                ) {
+                    Text(
+                        text = statusLabelUk(item),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = when (item.status) {
+                            ResolvedTaskStatus.COMPLETED -> Color(0xFF1B5E20)
+                            ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFB71C1C)
+                            ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFE65100)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
             }
 
             item.task.doseLabel?.let {
-                Text(text = it, style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF555555))
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             if (item.status == ResolvedTaskStatus.COMPLETED) {
                 val completionBadge = CareCloseWording.completedTaskBadge(
                     completedBy = item.completedBy,
@@ -791,25 +891,35 @@ private fun CaregiverTimelineTaskCard(
                     recipientName = CareCloseWording.recipientDisplayName(plan),
                     gender = plan.recipientRole.gender,
                 )
-                Text(
-                    text = completionBadge,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1B5E20),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                TextButton(onClick = onUndoCompleted) {
-                    Text("Скасувати відмітку")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = completionBadge,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1B5E20),
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onUndoCompleted) {
+                        Text("Скасувати", color = Color(0xFF555555))
+                    }
                 }
             } else {
                 Button(
                     onClick = onOverrideTaken,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
                 ) {
-                    Icon(Icons.Rounded.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(CareCloseWording.caregiverOverrideButton(activeCaregiverRole))
+                    Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = CareCloseWording.caregiverOverrideButton(activeCaregiverRole),
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }

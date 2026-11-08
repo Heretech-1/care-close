@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -217,10 +218,12 @@ fun ElderDashboardScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
-                        modifier = Modifier.height(60.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
+                        modifier = Modifier.height(56.dp),
                     ) {
-                        Icon(imageVector = Icons.Rounded.Call, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(imageVector = Icons.Rounded.Call, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = contact.name,
                             fontSize = 18.sp,
@@ -485,6 +488,7 @@ private fun FocusTaskCard(
         colors = CardDefaults.cardColors(
             containerColor = if (isUrgent) Color(0xFFFFF8E1) else Color.White,
         ),
+        border = if (isUrgent) BorderStroke(2.dp, Color(0xFFFFB74D)) else BorderStroke(1.dp, Color(0xFFE0E0E0)),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
@@ -570,30 +574,40 @@ private fun FocusTaskCard(
                     onClick = onMarkTaken,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(76.dp),
+                        .height(78.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
                 ) {
-                    Icon(imageVector = Icons.Rounded.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(30.dp),
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = CareCloseWording.elderActionTakenButton(recipientGender),
-                        fontSize = 21.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
                     )
                 }
 
                 if (isUrgent) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedButton(
                         onClick = onSnooze,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp),
+                            .height(58.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(2.dp, Color(0xFF78909C)),
                     ) {
                         Text(
                             text = "НАГАДАТИ ЧЕРЕЗ 10 ХВ",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF263238),
                         )
                     }
                 }
@@ -607,19 +621,47 @@ private fun AnchorActionCard(
     anchor: ResolvedDailyAnchor,
     onConfirm: () -> Unit,
 ) {
-    Button(
-        onClick = onConfirm,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Text(
-            text = "Я ПОЧИНАЮ: ${anchor.anchor.title.uppercase()}",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = anchor.anchor.title,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0D47A1),
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Натисніть, коли почнете подію",
+                    fontSize = 15.sp,
+                    color = Color(0xFF1565C0),
+                )
+            }
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
+                modifier = Modifier.height(52.dp),
+            ) {
+                Text(
+                    text = "ПОЧИНАЮ",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }
 
@@ -630,29 +672,56 @@ private fun CompletedTaskRow(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = "✅ ${item.task.title}",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0A2E0D),
-                modifier = Modifier.weight(1f),
-            )
-            item.completedAt?.let { doneAt ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f).padding(end = 8.dp),
+            ) {
+                Surface(
+                    color = Color(0xFF2E7D32),
+                    shape = CircleShape,
+                    modifier = Modifier.size(26.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "о ${timeFormatter.format(doneAt)}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1B5E20),
+                    text = item.task.title,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF0A2E0D),
                 )
+            }
+            item.completedAt?.let { doneAt ->
+                Surface(
+                    color = Color(0xFFC8E6C9),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(
+                        text = "о ${timeFormatter.format(doneAt)}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF1B5E20),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -664,6 +733,7 @@ private fun AllDoneCard() {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
             modifier = Modifier
@@ -692,27 +762,33 @@ private fun AllDoneCard() {
 private fun DoseCirclesIndicator(count: Double) {
     val fullPills = count.toInt().coerceIn(0, 6)
     val hasHalf = (count - fullPills) >= 0.25
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = Color(0xFFE3F2FD),
+        shape = RoundedCornerShape(14.dp),
     ) {
-        repeat(fullPills) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF0D47A1)),
-            )
-        }
-        if (hasHalf) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFBBDEFB)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("½", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0D47A1))
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(fullPills) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0D47A1)),
+                )
+            }
+            if (hasHalf) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF64B5F6)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("½", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0D47A1))
+                }
             }
         }
     }
