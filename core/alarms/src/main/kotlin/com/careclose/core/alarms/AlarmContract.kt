@@ -47,6 +47,7 @@ data class AlarmPermissionStatus(
     val canUseFullScreenIntent: Boolean,
     val isIgnoringBatteryOptimizations: Boolean,
     val canPostNotifications: Boolean,
+    val canDrawOverlays: Boolean = true,
 ) {
     val allCriticalGranted: Boolean
         get() = canScheduleExactAlarms && canUseFullScreenIntent && canPostNotifications
@@ -82,12 +83,30 @@ object AlarmPermissionChecker {
 
         val batteryUnrestricted = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
 
+        val drawOverlays = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+
         return AlarmPermissionStatus(
             canScheduleExactAlarms = exactAlarms,
             canUseFullScreenIntent = fullScreenIntent,
             isIgnoringBatteryOptimizations = batteryUnrestricted,
             canPostNotifications = postNotifications,
+            canDrawOverlays = drawOverlays,
         )
+    }
+
+    fun overlaySettingsIntent(context: Context): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}"),
+            )
+        } else {
+            appDetailsIntent(context)
+        }
     }
 
     fun exactAlarmSettingsIntent(context: Context): Intent {

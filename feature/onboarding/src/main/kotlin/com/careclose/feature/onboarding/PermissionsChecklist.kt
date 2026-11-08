@@ -110,6 +110,14 @@ fun ElderPermissionsChecklist(
             onAction = { context.startActivity(AlarmPermissionChecker.batterySettingsIntent()) },
         )
 
+        PermissionItemCard(
+            title = "Показ поверх інших додатків (Плаваюча кнопка)",
+            description = "Дозволяє підопічному швидко повернутися в додаток з будь-якого вікна",
+            granted = status.canDrawOverlays,
+            actionLabel = "Налаштувати",
+            onAction = { context.startActivity(AlarmPermissionChecker.overlaySettingsIntent(context)) },
+        )
+
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(

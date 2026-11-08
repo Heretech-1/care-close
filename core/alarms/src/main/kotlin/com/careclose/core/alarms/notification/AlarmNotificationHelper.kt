@@ -17,7 +17,9 @@ object AlarmNotificationHelper {
 
     const val ELDER_ALARM_CHANNEL_ID = "careclose_elder_alarms"
     const val CAREGIVER_ALERTS_CHANNEL_ID = "careclose_caregiver_alerts"
+    const val ELDER_ONGOING_STATUS_CHANNEL_ID = "careclose_elder_ongoing_status"
     const val ELDER_ALARM_NOTIFICATION_ID = 4001
+    const val ELDER_ONGOING_NOTIFICATION_ID = 4002
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -43,8 +45,19 @@ object AlarmNotificationHelper {
             lockscreenVisibility = Notification.VISIBILITY_PRIVATE
         }
 
+        val ongoingChannel = NotificationChannel(
+            ELDER_ONGOING_STATUS_CHANNEL_ID,
+            "Швидке повернення та статус дня",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Постійне закріплене сповіщення для швидкого повернення в CareClose"
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+
         manager.createNotificationChannel(elderChannel)
         manager.createNotificationChannel(caregiverChannel)
+        manager.createNotificationChannel(ongoingChannel)
     }
 
     fun buildElderAlarmNotification(
@@ -139,6 +152,41 @@ object AlarmNotificationHelper {
     fun cancelElderAlarmNotification(context: Context) {
         context.getSystemService(NotificationManager::class.java)
             ?.cancel(ELDER_ALARM_NOTIFICATION_ID)
+    }
+
+    fun postElderOngoingStatus(
+        context: Context,
+        title: String,
+        statusText: String,
+        mainActivityIntent: Intent,
+    ) {
+        ensureChannels(context)
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            ELDER_ONGOING_NOTIFICATION_ID,
+            mainActivityIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NotificationCompat.Builder(context, ELDER_ONGOING_STATUS_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_agenda)
+            .setContentTitle(title)
+            .setContentText(statusText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(statusText))
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+        manager.notify(ELDER_ONGOING_NOTIFICATION_ID, notification)
+    }
+
+    fun cancelElderOngoingStatus(context: Context) {
+        context.getSystemService(NotificationManager::class.java)
+            ?.cancel(ELDER_ONGOING_NOTIFICATION_ID)
     }
 }
 

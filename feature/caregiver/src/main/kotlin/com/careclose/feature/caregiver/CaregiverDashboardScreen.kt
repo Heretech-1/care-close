@@ -6,7 +6,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -83,6 +85,7 @@ import com.careclose.core.model.CareEventType
 import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
+import com.careclose.core.model.ElderQuickReturnMode
 import com.careclose.core.model.EmergencyContact
 import com.careclose.core.model.PairingQrPayload
 import com.careclose.core.model.PlanSnapshot
@@ -602,9 +605,22 @@ fun CaregiverDashboardScreen(
                     CaregiverSettingsContent(
                         syncConfigStore = syncConfigStore,
                         planVersion = plan.planVersion,
+                        currentQuickReturnMode = plan.quickReturnMode,
                         accessLevel = accessLevel,
                         onOpenOnboarding = onOpenOnboardingSettings,
                         onOpenShareHelperDialog = { showShareHelperDialog = true },
+                        onUpdateQuickReturnMode = { newMode ->
+                            val updated = plan.copy(
+                                planVersion = plan.planVersion + 1L,
+                                effectiveFromUtc = Instant.now().toString(),
+                                quickReturnMode = newMode,
+                            )
+                            scope.launch {
+                                runCatching { publishUpdatedPlan(updated) }
+                                    .onSuccess { statusBanner = "Режим швидкого повернення оновлено: ${newMode.title}" }
+                                    .onFailure { statusBanner = "Помилка оновлення: ${it.message}" }
+                            }
+                        },
                         onPublishCurrentPlan = {
                             scope.launch {
                                 runCatching { publishUpdatedPlan(plan) }
@@ -1248,13 +1264,16 @@ private fun InventoryContent(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CaregiverSettingsContent(
     syncConfigStore: SyncConfigStore,
     planVersion: Long,
+    currentQuickReturnMode: ElderQuickReturnMode = ElderQuickReturnMode.BOTH,
     accessLevel: CaregiverAccessLevel = CaregiverAccessLevel.PRIMARY,
     onOpenOnboarding: () -> Unit,
     onOpenShareHelperDialog: () -> Unit = {},
+    onUpdateQuickReturnMode: (ElderQuickReturnMode) -> Unit = {},
     onPublishCurrentPlan: () -> Unit,
     onTestMissedCheck: () -> Unit,
 ) {
@@ -1262,6 +1281,7 @@ private fun CaregiverSettingsContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -1290,6 +1310,44 @@ private fun CaregiverSettingsContent(
                     Text("Google Drive не налаштовано (локальний режим)")
                 }
                 Text("Активна версія плану: v$planVersion", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        if (accessLevel == CaregiverAccessLevel.PRIMARY) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Швидке повернення для підопічного",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = "Як підопічному повертатися в CareClose, якщо він згорнув додаток або перейшов у YouTube, дзвінки чи браузер:",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        ElderQuickReturnMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = (currentQuickReturnMode == mode),
+                                onClick = { onUpdateQuickReturnMode(mode) },
+                                label = { Text(mode.title) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = when (currentQuickReturnMode) {
+                            ElderQuickReturnMode.BOTH -> "Активні плаваюча серцева кнопка поверх екрану та закріплене сповіщення у верхній шторці Android."
+                            ElderQuickReturnMode.FLOATING_BUBBLE_ONLY -> "Плаваюча серцева кнопка поверх усіх додатків. Дозволяє повернутися в один дотик. Потребує системного дозволу на накладання."
+                            ElderQuickReturnMode.ONGOING_NOTIFICATION_ONLY -> "Закріплене сповіщення у верхній шторці Android з інформацією про наступний прийом ліків."
+                            ElderQuickReturnMode.DISABLED -> "Вимкнено. Підопічний запускає CareClose звичайним значком з головного екрану."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 

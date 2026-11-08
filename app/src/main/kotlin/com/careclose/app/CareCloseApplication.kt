@@ -26,13 +26,18 @@ import com.careclose.core.sync.telemetry.AndroidPresenceCollector
 import com.careclose.core.sync.worker.SyncDependenciesProvider
 import com.careclose.core.sync.worker.SyncScheduler
 import com.careclose.feature.elder.widget.ElderGlanceWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
 class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDependenciesProvider {
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val databases = mutableMapOf<String, CareCloseDatabase>()
     private val repositories = mutableMapOf<String, CareCloseRepository>()
 
@@ -114,12 +119,16 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
     override suspend fun onSyncPullCompleted() {
         alarmCoordinator.rescheduleForCurrentRole()
         ElderGlanceWidget.requestUpdate(this)
+        updateElderOngoingStatusNotification()
     }
 
     override fun onLocalEventRecorded() {
         ElderGlanceWidget.requestUpdateAsync(this)
         if (androidSyncStore.isPaired()) {
             SyncScheduler.enqueueImmediateSync(this)
+        }
+        appScope.launch {
+            updateElderOngoingStatusNotification()
         }
     }
 
@@ -177,11 +186,77 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
         if (deviceConfigStore.getRole() == Role.ELDER && androidSyncStore.isPaired()) {
             SyncScheduler.ensurePeriodicElderSync(this)
         }
+        appScope.launch {
+            updateElderOngoingStatusNotification()
+        }
     }
 
     override fun createMainActivityIntent(context: Context): Intent {
         return Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
+    }
+
+    fun updateElderOngoingStatusNotificationAsync() {
+        appScope.launch {
+            updateElderOngoingStatusNotification()
+        }
+    }
+
+    suspend fun updateElderOngoingStatusNotification() {
+        if (deviceConfigStore.getRole() != Role.ELDER) {
+            AlarmNotificationHelper.cancelElderOngoingStatus(this)
+            return
+        }
+
+        val plan = careCloseRepository.getActivePlan()
+        if (plan == null || !plan.quickReturnMode.isNotificationEnabled) {
+            AlarmNotificationHelper.cancelElderOngoingStatus(this)
+            return
+        }
+
+        val today = LocalDate.now(plan.safeZoneId)
+        val events = careCloseRepository.observeEventsForDate(today.toString()).first()
+        val timeline = DailyScheduleResolver.resolve(
+            plan = plan,
+            logicalDate = today,
+            events = events,
+            elderPresence = null,
+            now = Instant.now(),
+        )
+
+        val activeOrNext = timeline.tasks.firstOrNull {
+            it.status == ResolvedTaskStatus.DUE_NOW ||
+                it.status == ResolvedTaskStatus.PENDING ||
+                it.status == ResolvedTaskStatus.SNOOZED ||
+                it.status == ResolvedTaskStatus.WAITING_FOR_ANCHOR
+        }
+
+        val (title, text) = if (activeOrNext != null) {
+            val task = activeOrNext.task
+            val timePrefix = activeOrNext.scheduledAt?.let { instant ->
+                val localTime = instant.atZone(plan.safeZoneId).toLocalTime()
+                String.format("%02d:%02d • ", localTime.hour, localTime.minute)
+            } ?: ""
+            val doseInfo = task.doseLabel?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
+            val recipient = CareCloseWording.recipientDisplayName(plan)
+            Pair(
+                "$timePrefix${task.title}",
+                "${task.title}$doseInfo. $recipient, торкніться для повернення в CareClose.",
+            )
+        } else {
+            Pair(
+                "CareClose • Спокій та піклування",
+                "Усі заплановані завдання на сьогодні виконано. Торкніться для перегляду.",
+            )
+        }
+
+        val intent = createMainActivityIntent(this)
+        AlarmNotificationHelper.postElderOngoingStatus(
+            context = this,
+            title = title,
+            statusText = text,
+            mainActivityIntent = intent,
+        )
     }
 }

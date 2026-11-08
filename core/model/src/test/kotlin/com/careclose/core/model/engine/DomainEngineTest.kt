@@ -397,5 +397,25 @@ class DomainEngineTest {
         val taskAfter = timelineAfterSnooze.tasks.first { it.task.id == "med_morning" }
         assertEquals(ResolvedTaskStatus.DUE_NOW, taskAfter.status)
     }
+
+    @Test
+    fun `verifies ElderQuickReturnMode serialization and default values`() {
+        val plan = basePlan()
+        assertEquals(com.careclose.core.model.ElderQuickReturnMode.BOTH, plan.quickReturnMode)
+        assertTrue(plan.quickReturnMode.isBubbleEnabled)
+        assertTrue(plan.quickReturnMode.isNotificationEnabled)
+
+        val jsonStr = CareCloseJson.instance.encodeToString(PlanSnapshot.serializer(), plan)
+        val decoded = CareCloseJson.instance.decodeFromString(PlanSnapshot.serializer(), jsonStr)
+        assertEquals(com.careclose.core.model.ElderQuickReturnMode.BOTH, decoded.quickReturnMode)
+
+        val bubbleOnly = plan.copy(quickReturnMode = com.careclose.core.model.ElderQuickReturnMode.FLOATING_BUBBLE_ONLY)
+        assertTrue(bubbleOnly.quickReturnMode.isBubbleEnabled)
+        assertFalse(bubbleOnly.quickReturnMode.isNotificationEnabled)
+
+        val notifOnly = plan.copy(quickReturnMode = com.careclose.core.model.ElderQuickReturnMode.ONGOING_NOTIFICATION_ONLY)
+        assertFalse(notifOnly.quickReturnMode.isBubbleEnabled)
+        assertTrue(notifOnly.quickReturnMode.isNotificationEnabled)
+    }
 }
 

@@ -150,6 +150,28 @@ data class TaskRule(
 )
 
 @Serializable
+enum class ElderQuickReturnMode {
+    BOTH,
+    FLOATING_BUBBLE_ONLY,
+    ONGOING_NOTIFICATION_ONLY,
+    DISABLED;
+
+    val title: String
+        get() = when (this) {
+            BOTH -> "І кнопка поверх вікон, і шторка (Рекомендовано)"
+            FLOATING_BUBBLE_ONLY -> "Лише плаваюча кнопка поверх вікон"
+            ONGOING_NOTIFICATION_ONLY -> "Лише закріплене сповіщення у шторці"
+            DISABLED -> "Вимкнено"
+        }
+
+    val isBubbleEnabled: Boolean
+        get() = this == BOTH || this == FLOATING_BUBBLE_ONLY
+
+    val isNotificationEnabled: Boolean
+        get() = this == BOTH || this == ONGOING_NOTIFICATION_ONLY
+}
+
+@Serializable
 data class EmergencyContact(
     val name: String,
     val phone: String,
@@ -167,6 +189,7 @@ data class PlanSnapshot(
     val emergencyContact: EmergencyContact? = null,
     val anchors: List<AnchorRule> = emptyList(),
     val tasks: List<TaskRule> = emptyList(),
+    val quickReturnMode: ElderQuickReturnMode = ElderQuickReturnMode.BOTH,
 ) {
     val safeZoneId: java.time.ZoneId
         get() = runCatching { java.time.ZoneId.of(timezone) }.getOrElse { java.time.ZoneId.systemDefault() }

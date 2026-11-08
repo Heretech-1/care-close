@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.careclose.feature.elder.service.ElderFloatingBubbleService
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -62,6 +64,26 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        ElderFloatingBubbleService.stop(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val app = application as? CareCloseApplication ?: return
+        if (app.deviceConfigStore.getRole() == Role.ELDER &&
+            ElderFloatingBubbleService.canDrawOverlays(this)
+        ) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val plan = app.careCloseRepository.getActivePlan()
+                if (plan?.quickReturnMode?.isBubbleEnabled == true) {
+                    ElderFloatingBubbleService.start(this@MainActivity)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -89,6 +111,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                 ),
             )
             alarmCoordinator.rescheduleForCurrentRole()
+            app.updateElderOngoingStatusNotificationAsync()
         }
     }
 
@@ -141,6 +164,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                                 )
                             }
                             alarmCoordinator.rescheduleForCurrentRole()
+                            app.updateElderOngoingStatusNotificationAsync()
                         }
                     },
                     onCancelAddingProfile = {
@@ -208,6 +232,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                                 )
                             }
                             alarmCoordinator.rescheduleForCurrentRole()
+                            app.updateElderOngoingStatusNotificationAsync()
                             showOnboarding = false
                         }
                     },
@@ -235,6 +260,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                         onEventRecorded = {
                             app.onLocalEventRecorded()
                             alarmCoordinator.rescheduleForCurrentRole()
+                            app.updateElderOngoingStatusNotificationAsync()
                         },
                         onOpenPermissionsSetup = { showElderPermissions = true },
                         onOpenServiceSettings = { showOnboarding = true },
@@ -269,6 +295,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                         activeProfileId = profileId
                         scope.launch {
                             alarmCoordinator.rescheduleForCurrentRole()
+                            app.updateElderOngoingStatusNotificationAsync()
                         }
                     },
                     onAddNewElderProfile = {
