@@ -1349,6 +1349,7 @@ private fun ShareHelperDialog(
     }
     val qrString = remember(helperPayload) { PairingPayloadCodec.encode(helperPayload) }
     val qrBitmap = remember(qrString) { QrBitmapGenerator.generate(qrString, 480) }
+    var isCopied by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1374,10 +1375,11 @@ private fun ShareHelperDialog(
                     onClick = {
                         val clipboard = context.getSystemService(ClipboardManager::class.java)
                         clipboard?.setPrimaryClip(ClipData.newPlainText("CareClose Helper Code", qrString))
+                        isCopied = true
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Скопіювати текстовий код")
+                    Text(if (isCopied) "✓ Скопійовано в буфер!" else "Скопіювати текстовий код")
                 }
             }
         },
