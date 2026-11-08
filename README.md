@@ -91,9 +91,9 @@
 # Додайте віддалений репозиторій (замініть YOUR_USERNAME та YOUR_REPOSITORY на ваші)
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
 
-# Переконайтеся, що гілка master активна
-git branch -M master
+# Переконайтеся, що гілка main активна
+git branch -M main
 
 # Надішліть код на GitHub
-git push -u origin master
+git push -u origin main
 ```
