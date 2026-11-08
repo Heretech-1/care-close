@@ -183,7 +183,7 @@ fun ElderDashboardScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF6F8F5))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -199,12 +199,12 @@ fun ElderDashboardScreen(
                         text = clockFormatter.format(currentInstant),
                         fontSize = 44.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF111418),
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
                         text = "${dateFormatter.format(currentInstant).replaceFirstChar { it.uppercase() }} · $dayPeriod",
                         fontSize = 18.sp,
-                        color = Color(0xFF42474E),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -488,9 +488,13 @@ private fun FocusTaskCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isUrgent) Color(0xFFFFF8E1) else Color.White,
+            containerColor = if (isUrgent) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
         ),
-        border = if (isUrgent) BorderStroke(2.dp, Color(0xFFFFB74D)) else BorderStroke(1.dp, Color(0xFFE0E0E0)),
+        border = if (isUrgent) {
+            BorderStroke(2.5.dp, MaterialTheme.colorScheme.error)
+        } else {
+            BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+        },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
@@ -509,12 +513,12 @@ private fun FocusTaskCard(
             }
 
             Surface(
-                color = if (isUrgent) Color(0xFFE65100) else Color(0xFFE8F5E9),
+                color = if (isUrgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text(
                     text = badgeText,
-                    color = if (isUrgent) Color.White else Color(0xFF1B5E20),
+                    color = if (isUrgent) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -529,7 +533,7 @@ private fun FocusTaskCard(
                 lineHeight = 36.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                color = Color(0xFF111418),
+                color = MaterialTheme.colorScheme.onSurface,
             )
 
             pillBitmap?.let { bmp ->
@@ -566,7 +570,7 @@ private fun FocusTaskCard(
                 Text(
                     text = it,
                     fontSize = 18.sp,
-                    color = Color(0xFF42474E),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.careclose.app.ui.theme.CareCloseTheme
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
@@ -59,8 +61,23 @@ class MainActivity : ComponentActivity() {
         val app = application as CareCloseApplication
 
         setContent {
-            CareCloseTheme {
-                CareCloseShell(app = app)
+            val deviceConfigStore = app.deviceConfigStore
+            var localThemeMode by remember { mutableStateOf(deviceConfigStore.getThemeMode()) }
+            val activePlan by app.careCloseRepository.observeActivePlan().collectAsState(initial = null)
+            val currentRole = deviceConfigStore.getRole()
+
+            val effectiveTheme = when (currentRole) {
+                Role.ELDER -> activePlan?.elderThemeMode ?: localThemeMode
+                else -> localThemeMode
+            }
+
+            CareCloseTheme(themeMode = effectiveTheme) {
+                CareCloseShell(
+                    app = app,
+                    onThemeChanged = { newTheme ->
+                        localThemeMode = newTheme
+                    },
+                )
             }
         }
     }
@@ -79,7 +96,11 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch(Dispatchers.IO) {
                 val plan = app.careCloseRepository.getActivePlan()
                 if (plan?.quickReturnMode?.isBubbleEnabled == true) {
-                    ElderFloatingBubbleService.start(this@MainActivity)
+                    ElderFloatingBubbleService.start(
+                        context = this@MainActivity,
+                        buttonSize = plan.floatingButtonSize,
+                        isHighContrast = plan.elderThemeMode == AppThemeMode.HIGH_CONTRAST,
+                    )
                 }
             }
         }
@@ -87,7 +108,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun CareCloseShell(app: CareCloseApplication) {
+private fun CareCloseShell(
+    app: CareCloseApplication,
+    onThemeChanged: (AppThemeMode) -> Unit = {},
+) {
     var activeProfileId by remember { mutableStateOf(app.syncConfigStore.getActiveProfileId()) }
     val repository = remember(activeProfileId) { app.careCloseRepository }
     val deviceConfigStore = app.deviceConfigStore
@@ -301,6 +325,7 @@ private fun CareCloseShell(app: CareCloseApplication) {
                     onAddNewElderProfile = {
                         isAddingNewProfile = true
                     },
+                    onThemeChanged = onThemeChanged,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

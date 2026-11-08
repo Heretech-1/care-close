@@ -1,12 +1,14 @@
 package com.careclose.core.model.engine
 
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CareCloseJson
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.DevicePresence
 import com.careclose.core.model.EscalationPolicy
+import com.careclose.core.model.FloatingButtonSize
 import com.careclose.core.model.NetworkType
 import com.careclose.core.model.PillInventory
 import com.careclose.core.model.PlanSnapshot
@@ -562,6 +564,33 @@ class DomainEngineTest {
         val resolvedRelative = timeline.tasks.first { it.task.id == "med_after_breakfast" }
         assertTrue(resolvedRelative.isMissingAnchor)
         assertNull(resolvedRelative.anchorTitle)
+    }
+
+    @Test
+    fun `theme modes and floating button sizes are serialized correctly`() {
+        val plan = basePlan().copy(
+            elderThemeMode = AppThemeMode.HIGH_CONTRAST,
+            floatingButtonSize = FloatingButtonSize.EXTRA_LARGE,
+        )
+
+        assertEquals(AppThemeMode.HIGH_CONTRAST, plan.elderThemeMode)
+        assertEquals(FloatingButtonSize.EXTRA_LARGE, plan.floatingButtonSize)
+        assertEquals(104, plan.floatingButtonSize.dpSize)
+        assertEquals("Максимальна контрастна (104 dp)", plan.floatingButtonSize.title)
+
+        val json = CareCloseJson.instance.encodeToString(PlanSnapshot.serializer(), plan)
+        assertTrue(json.contains("\"HIGH_CONTRAST\""))
+        assertTrue(json.contains("\"EXTRA_LARGE\""))
+
+        val decoded = CareCloseJson.instance.decodeFromString(PlanSnapshot.serializer(), json)
+        assertEquals(AppThemeMode.HIGH_CONTRAST, decoded.elderThemeMode)
+        assertEquals(FloatingButtonSize.EXTRA_LARGE, decoded.floatingButtonSize)
+
+        // Default values
+        val defaultPlan = basePlan()
+        assertEquals(AppThemeMode.SYSTEM, defaultPlan.elderThemeMode)
+        assertEquals(FloatingButtonSize.LARGE, defaultPlan.floatingButtonSize)
+        assertEquals(88, defaultPlan.floatingButtonSize.dpSize)
     }
 }
 

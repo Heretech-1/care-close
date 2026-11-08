@@ -176,6 +176,43 @@ data class TaskRule(
 }
 
 @Serializable
+enum class AppThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK,
+    HIGH_CONTRAST;
+
+    val title: String
+        get() = when (this) {
+            SYSTEM -> "Як у телефоні (системна)"
+            LIGHT -> "Світла"
+            DARK -> "Темна"
+            HIGH_CONTRAST -> "Контрастна (для кращої видимості)"
+        }
+}
+
+@Serializable
+enum class FloatingButtonSize {
+    STANDARD,
+    LARGE,
+    EXTRA_LARGE;
+
+    val title: String
+        get() = when (this) {
+            STANDARD -> "Стандартна (72 dp)"
+            LARGE -> "Велика (88 dp, рекомендовано)"
+            EXTRA_LARGE -> "Максимальна контрастна (104 dp)"
+        }
+
+    val dpSize: Int
+        get() = when (this) {
+            STANDARD -> 72
+            LARGE -> 88
+            EXTRA_LARGE -> 104
+        }
+}
+
+@Serializable
 enum class ElderQuickReturnMode {
     BOTH,
     FLOATING_BUBBLE_ONLY,
@@ -217,6 +254,8 @@ data class PlanSnapshot(
     val anchors: List<AnchorRule> = emptyList(),
     val tasks: List<TaskRule> = emptyList(),
     val quickReturnMode: ElderQuickReturnMode = ElderQuickReturnMode.BOTH,
+    val elderThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val floatingButtonSize: FloatingButtonSize = FloatingButtonSize.LARGE,
 ) {
     val safeZoneId: java.time.ZoneId
         get() = runCatching { java.time.ZoneId.of(timezone) }.getOrElse { java.time.ZoneId.systemDefault() }

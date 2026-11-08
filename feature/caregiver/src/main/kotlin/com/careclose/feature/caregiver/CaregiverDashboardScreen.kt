@@ -81,6 +81,7 @@ import com.careclose.core.database.entity.MediaCacheEntity
 import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
 import com.careclose.core.model.CaregiverAccessLevel
@@ -88,6 +89,7 @@ import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.ElderQuickReturnMode
 import com.careclose.core.model.EmergencyContact
+import com.careclose.core.model.FloatingButtonSize
 import com.careclose.core.model.PairingQrPayload
 import com.careclose.core.model.PlanSnapshot
 import com.careclose.core.model.RecipientRole
@@ -138,6 +140,7 @@ fun CaregiverDashboardScreen(
     onOpenOnboardingSettings: () -> Unit,
     onSwitchProfile: (String) -> Unit = {},
     onAddNewElderProfile: () -> Unit = {},
+    onThemeChanged: (AppThemeMode) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -146,6 +149,7 @@ fun CaregiverDashboardScreen(
 
     val accessLevel = remember { deviceConfigStore.getCaregiverAccessLevel() }
     val myCaregiverName = remember { deviceConfigStore.getCaregiverName() }
+    var localThemeMode by remember { mutableStateOf(deviceConfigStore.getThemeMode()) }
 
     val allProfiles = remember(syncConfigStore) { syncConfigStore.getAllProfiles() }
     val currentProfile = remember(syncConfigStore, allProfiles) { syncConfigStore.getPairingPayload() }
@@ -608,6 +612,9 @@ fun CaregiverDashboardScreen(
                         plan = plan,
                         planVersion = plan.planVersion,
                         currentQuickReturnMode = plan.quickReturnMode,
+                        currentButtonSize = plan.floatingButtonSize,
+                        currentElderTheme = plan.elderThemeMode,
+                        localThemeMode = localThemeMode,
                         accessLevel = accessLevel,
                         onOpenOnboarding = onOpenOnboardingSettings,
                         onOpenShareHelperDialog = { showShareHelperDialog = true },
@@ -647,6 +654,35 @@ fun CaregiverDashboardScreen(
                                     .onSuccess { statusBanner = "Режим швидкого повернення оновлено: ${newMode.title}" }
                                     .onFailure { statusBanner = "Помилка оновлення: ${it.message}" }
                             }
+                        },
+                        onUpdateFloatingButtonSize = { newSize ->
+                            val updated = plan.copy(
+                                planVersion = plan.planVersion + 1L,
+                                effectiveFromUtc = Instant.now().toString(),
+                                floatingButtonSize = newSize,
+                            )
+                            scope.launch {
+                                runCatching { publishUpdatedPlan(updated) }
+                                    .onSuccess { statusBanner = "Розмір плаваючої кнопки оновлено: ${newSize.title}" }
+                                    .onFailure { statusBanner = "Помилка оновлення розміру кнопки: ${it.message}" }
+                            }
+                        },
+                        onUpdateElderTheme = { newTheme ->
+                            val updated = plan.copy(
+                                planVersion = plan.planVersion + 1L,
+                                effectiveFromUtc = Instant.now().toString(),
+                                elderThemeMode = newTheme,
+                            )
+                            scope.launch {
+                                runCatching { publishUpdatedPlan(updated) }
+                                    .onSuccess { statusBanner = "Тему на телефоні підопічного оновлено: ${newTheme.title}" }
+                                    .onFailure { statusBanner = "Помилка оновлення теми: ${it.message}" }
+                            }
+                        },
+                        onUpdateLocalTheme = { newTheme ->
+                            deviceConfigStore.setThemeMode(newTheme)
+                            localThemeMode = newTheme
+                            onThemeChanged(newTheme)
                         },
                         onPublishCurrentPlan = {
                             scope.launch {
@@ -1389,12 +1425,18 @@ private fun CaregiverSettingsContent(
     plan: PlanSnapshot,
     planVersion: Long,
     currentQuickReturnMode: ElderQuickReturnMode = ElderQuickReturnMode.BOTH,
+    currentButtonSize: FloatingButtonSize = FloatingButtonSize.LARGE,
+    currentElderTheme: AppThemeMode = AppThemeMode.SYSTEM,
+    localThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     accessLevel: CaregiverAccessLevel = CaregiverAccessLevel.PRIMARY,
     onOpenOnboarding: () -> Unit,
     onOpenShareHelperDialog: () -> Unit = {},
     onUpdateContact: (EmergencyContact) -> Unit = {},
     onUpdateRoles: (RecipientRole, CaregiverRole, String?) -> Unit = { _, _, _ -> },
     onUpdateQuickReturnMode: (ElderQuickReturnMode) -> Unit = {},
+    onUpdateFloatingButtonSize: (FloatingButtonSize) -> Unit = {},
+    onUpdateElderTheme: (AppThemeMode) -> Unit = {},
+    onUpdateLocalTheme: (AppThemeMode) -> Unit = {},
     onPublishCurrentPlan: () -> Unit,
     onTestMissedCheck: () -> Unit,
 ) {
@@ -1598,6 +1640,72 @@ private fun CaregiverSettingsContent(
                             ElderQuickReturnMode.ONGOING_NOTIFICATION_ONLY -> "Закріплене сповіщення у верхній шторці Android з інформацією про наступний прийом ліків."
                             ElderQuickReturnMode.DISABLED -> "Вимкнено. Підопічний запускає CareClose звичайним значком з головного екрану."
                         },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    if (currentQuickReturnMode.isBubbleEnabled) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Розмір плаваючої кнопки на екрані:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            FloatingButtonSize.entries.forEach { size ->
+                                FilterChip(
+                                    selected = (currentButtonSize == size),
+                                    onClick = { onUpdateFloatingButtonSize(size) },
+                                    label = { Text(size.title) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Оформлення та кольорова тема",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Тема оформлення опікуна (на цьому пристрої):",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppThemeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = localThemeMode == mode,
+                            onClick = { onUpdateLocalTheme(mode) },
+                            label = { Text(mode.title) },
+                        )
+                    }
+                }
+
+                if (accessLevel == CaregiverAccessLevel.PRIMARY) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Тема на телефоні підопічного (передається в плані):",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppThemeMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = currentElderTheme == mode,
+                                onClick = { onUpdateElderTheme(mode) },
+                                label = { Text(mode.title) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = "💡 Контрастна тема використовує суцільний чорний фон та яскраві неонові акценти без блідих півтонів — це значно спрощує сприйняття для людей із віковими вадами зору або катарактою.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

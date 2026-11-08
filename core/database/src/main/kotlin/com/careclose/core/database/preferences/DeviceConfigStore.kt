@@ -1,6 +1,7 @@
 package com.careclose.core.database.preferences
 
 import android.content.Context
+import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Role
@@ -19,6 +20,9 @@ interface DeviceConfigStore {
 
     fun getCaregiverName(): String?
     fun setCaregiverName(name: String?)
+
+    fun getThemeMode(): AppThemeMode
+    fun setThemeMode(mode: AppThemeMode)
 }
 
 class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
@@ -78,6 +82,15 @@ class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
         }.apply()
     }
 
+    override fun getThemeMode(): AppThemeMode {
+        val raw = prefs.getString(KEY_THEME_MODE, null) ?: return AppThemeMode.SYSTEM
+        return runCatching { AppThemeMode.valueOf(raw) }.getOrDefault(AppThemeMode.SYSTEM)
+    }
+
+    override fun setThemeMode(mode: AppThemeMode) {
+        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "careclose_device_config"
         const val KEY_DEVICE_ID = "device_id"
@@ -85,6 +98,7 @@ class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
         const val KEY_CAREGIVER_ACCESS_LEVEL = "caregiver_access_level"
         const val KEY_CAREGIVER_ROLE = "caregiver_role"
         const val KEY_CAREGIVER_NAME = "caregiver_name"
+        const val KEY_THEME_MODE = "app_theme_mode"
     }
 }
 
