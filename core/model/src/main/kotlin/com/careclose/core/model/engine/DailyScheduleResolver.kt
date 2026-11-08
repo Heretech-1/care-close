@@ -76,7 +76,7 @@ object DailyScheduleResolver {
         now: Instant,
         offlineThresholdMinutes: Long = 60L,
     ): DailyTimeline {
-        val zone = ZoneId.of(plan.timezone)
+        val zone = plan.safeZoneId
         val isoDay = logicalDate.dayOfWeek.value
         val dayString = logicalDate.toString()
 

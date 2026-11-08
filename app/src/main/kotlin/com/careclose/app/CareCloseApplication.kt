@@ -134,7 +134,7 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
             }
 
             val plan = careCloseRepository.getActivePlan() ?: return@CaregiverCheckHandler
-            val today = LocalDate.now(ZoneId.of(plan.timezone))
+            val today = LocalDate.now(plan.safeZoneId)
             val events = careCloseRepository.observeEventsForDate(today.toString()).first()
             val presence = careCloseRepository.observeLatestElderPresence().first()
             val timeline = DailyScheduleResolver.resolve(

@@ -167,7 +167,10 @@ data class PlanSnapshot(
     val emergencyContact: EmergencyContact? = null,
     val anchors: List<AnchorRule> = emptyList(),
     val tasks: List<TaskRule> = emptyList(),
-)
+) {
+    val safeZoneId: java.time.ZoneId
+        get() = runCatching { java.time.ZoneId.of(timezone) }.getOrElse { java.time.ZoneId.systemDefault() }
+}
 
 @Serializable
 data class ActivePlanPointer(

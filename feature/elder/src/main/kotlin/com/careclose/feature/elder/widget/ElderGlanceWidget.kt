@@ -50,7 +50,7 @@ class ElderGlanceWidget : GlanceAppWidget() {
         val plan = provider?.careCloseRepository?.getActivePlan()
 
         val summary = if (plan != null) {
-            val zone = ZoneId.of(plan.timezone)
+            val zone = plan.safeZoneId
             val today = LocalDate.now(zone)
             val events = provider.careCloseRepository.observeEventsForDate(today.toString()).first()
             val presence = provider.careCloseRepository.observeLatestElderPresence().first()

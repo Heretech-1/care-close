@@ -62,7 +62,7 @@ class AlarmCoordinator(
 
     suspend fun scheduleNextElderAlarm(now: Instant = Instant.now()): Instant? {
         val plan = repository.getActivePlan() ?: return null
-        val zone = ZoneId.of(plan.timezone)
+        val zone = plan.safeZoneId
         val today = LocalDate.now(zone)
 
         val todayEvents = repository.observeEventsForDate(today.toString()).first()
@@ -128,7 +128,7 @@ class AlarmCoordinator(
 
     suspend fun scheduleNextCaregiverCheck(now: Instant = Instant.now()): Instant? {
         val plan = repository.getActivePlan() ?: return null
-        val zone = ZoneId.of(plan.timezone)
+        val zone = plan.safeZoneId
         val today = LocalDate.now(zone)
         val todayEvents = repository.observeEventsForDate(today.toString()).first()
         val presence = repository.observeLatestElderPresence().first()
