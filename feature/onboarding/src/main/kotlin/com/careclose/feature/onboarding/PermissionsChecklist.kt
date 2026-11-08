@@ -118,6 +118,31 @@ fun ElderPermissionsChecklist(
             onAction = { context.startActivity(AlarmPermissionChecker.overlaySettingsIntent(context)) },
         )
 
+        PermissionItemCard(
+            title = "Пропуск режиму «Не турбувати» (DND)",
+            description = "Дозволяє важливим нагадуванням та екстреній сирені звучати, навіть коли телефон на беззвучному",
+            granted = status.canAccessNotificationPolicy,
+            actionLabel = "Налаштувати",
+            onAction = { context.startActivity(AlarmPermissionChecker.notificationPolicySettingsIntent()) },
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "💡 Порада для екстрених дзвінків",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "Додайте номер опікуна в «Обрані контакти» (зірочкою) у телефонній книзі підопічного. Тоді звичайні телефонні дзвінки опікуна завжди проходитимуть зі звуком.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(

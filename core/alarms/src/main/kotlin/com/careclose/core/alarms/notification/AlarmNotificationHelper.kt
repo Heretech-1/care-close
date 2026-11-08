@@ -188,5 +188,15 @@ object AlarmNotificationHelper {
         context.getSystemService(NotificationManager::class.java)
             ?.cancel(ELDER_ONGOING_NOTIFICATION_ID)
     }
+
+    fun triggerEmergencySiren(context: Context, payload: AlarmPayload) {
+        com.careclose.core.alarms.service.AlarmRingingService.start(context, payload)
+        val payloadJson = CareCloseJson.instance.encodeToString(AlarmPayload.serializer(), payload)
+        val fullScreenIntent = Intent(context, FullScreenAlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmExtras.EXTRA_PAYLOAD_JSON, payloadJson)
+        }
+        runCatching { context.startActivity(fullScreenIntent) }
+    }
 }
 

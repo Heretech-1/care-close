@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import com.careclose.core.alarms.AlarmDependenciesProvider
+import com.careclose.core.alarms.AlarmKind
+import com.careclose.core.alarms.AlarmPayload
 import com.careclose.core.alarms.CaregiverCheckHandler
 import com.careclose.core.alarms.notification.AlarmNotificationHelper
 import com.careclose.core.alarms.scheduler.AlarmCoordinator
@@ -13,6 +15,8 @@ import com.careclose.core.database.preferences.SharedPrefsDeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.database.repository.DelegatingCareCloseRepository
 import com.careclose.core.database.repository.RoomCareCloseRepository
+import com.careclose.core.model.CareEventType
+import com.careclose.core.model.Criticality
 import com.careclose.core.model.Role
 import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
@@ -120,6 +124,44 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
         alarmCoordinator.rescheduleForCurrentRole()
         ElderGlanceWidget.requestUpdate(this)
         updateElderOngoingStatusNotification()
+        checkActiveEmergencyPing()
+    }
+
+    private suspend fun checkActiveEmergencyPing() {
+        if (deviceConfigStore.getRole() != Role.ELDER) return
+        val plan = careCloseRepository.getActivePlan() ?: return
+        val today = LocalDate.now(plan.safeZoneId)
+        val events = careCloseRepository.observeEventsForDate(today.toString()).first()
+
+        val lastPing = events.filter { it.type == CareEventType.EMERGENCY_PING }
+            .maxByOrNull { it.occurredAtUtc } ?: return
+
+        val isDismissed = events.any {
+            it.type == CareEventType.EMERGENCY_PING_DISMISSED &&
+                it.occurredAtUtc >= lastPing.occurredAtUtc
+        }
+        if (isDismissed) return
+
+        val pingInstant = runCatching { Instant.parse(lastPing.occurredAtUtc) }.getOrNull() ?: return
+        val isRecent = java.time.Duration.between(pingInstant, Instant.now()).toMinutes() < 60
+        if (!isRecent) return
+
+        val caregiverName = plan.caregiverRole.defaultTitle
+        val caregiverPhone = plan.caregiverPhone ?: plan.emergencyContact?.phone
+        val payload = AlarmPayload(
+            kind = AlarmKind.EMERGENCY_CALL_PING,
+            targetId = lastPing.eventId,
+            logicalDate = today.toString(),
+            planVersion = plan.planVersion,
+            title = "$caregiverName терміново шукає вас!",
+            subtitle = caregiverPhone,
+            instruction = "Опікун хвилюється та намагається зв'язатися з вами. Торкніться кнопки «Я тут, усе гаразд» або зателефонуйте.",
+            criticality = Criticality.CRITICAL,
+            scheduledAtUtc = lastPing.occurredAtUtc,
+            recipientGender = plan.recipientRole.gender,
+        )
+
+        AlarmNotificationHelper.triggerEmergencySiren(this, payload)
     }
 
     override fun onLocalEventRecorded() {

@@ -268,7 +268,9 @@ object DailyScheduleResolver {
                     }
                 }
 
-                CareEventType.ANCHOR_CONFIRMED -> Unit
+                CareEventType.ANCHOR_CONFIRMED,
+                CareEventType.EMERGENCY_PING,
+                CareEventType.EMERGENCY_PING_DISMISSED -> Unit
             }
         }
 

@@ -1,5 +1,6 @@
 package com.careclose.core.alarms.audio
 
+import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -16,13 +17,34 @@ import java.io.File
 class ElderAlarmAudioPlayer(private val context: Context) {
 
     private val audioManager = context.getSystemService(AudioManager::class.java)
+    private val notificationManager = context.getSystemService(NotificationManager::class.java)
     private var mediaPlayer: MediaPlayer? = null
     private var focusRequest: AudioFocusRequest? = null
+    private var previousInterruptionFilter: Int? = null
+    private var previousAlarmVolume: Int? = null
     private var isStopped = false
 
-    fun start(voiceMediaPath: String?, vibrate: Boolean) {
+    fun start(voiceMediaPath: String?, vibrate: Boolean, isEmergency: Boolean = false) {
         stop()
         isStopped = false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager?.isNotificationPolicyAccessGranted == true) {
+            previousInterruptionFilter = notificationManager.currentInterruptionFilter
+            runCatching {
+                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+            }
+        }
+
+        audioManager?.let { am ->
+            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val currentVol = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            val targetRatio = if (isEmergency) 1.0 else 0.85
+            val minSafeVol = (maxVol * targetRatio).toInt().coerceAtLeast(1)
+            if (currentVol < minSafeVol) {
+                previousAlarmVolume = currentVol
+                runCatching { am.setStreamVolume(AudioManager.STREAM_ALARM, minSafeVol, 0) }
+            }
+        }
 
         val alarmAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
@@ -34,7 +56,7 @@ class ElderAlarmAudioPlayer(private val context: Context) {
 
         requestFocus(alarmAttributes)
         if (vibrate) {
-            startVibration()
+            startVibration(isEmergency = isEmergency)
         }
 
         val voiceFile = voiceMediaPath?.let { File(it) }?.takeIf { it.exists() && it.canRead() }
@@ -60,6 +82,20 @@ class ElderAlarmAudioPlayer(private val context: Context) {
         }
         focusRequest = null
         stopVibration()
+
+        previousInterruptionFilter?.let { filter ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager?.isNotificationPolicyAccessGranted == true) {
+                runCatching { notificationManager.setInterruptionFilter(filter) }
+            }
+        }
+        previousInterruptionFilter = null
+
+        previousAlarmVolume?.let { vol ->
+            audioManager?.let { am ->
+                runCatching { am.setStreamVolume(AudioManager.STREAM_ALARM, vol, 0) }
+            }
+        }
+        previousAlarmVolume = null
     }
 
     private fun playVoiceThenFallbackTone(voiceFile: File, attributes: AudioAttributes) {
@@ -119,8 +155,12 @@ class ElderAlarmAudioPlayer(private val context: Context) {
         audioManager?.requestAudioFocus(req)
     }
 
-    private fun startVibration() {
-        val pattern = longArrayOf(0L, 600L, 400L, 600L, 800L)
+    private fun startVibration(isEmergency: Boolean = false) {
+        val pattern = if (isEmergency) {
+            longArrayOf(0L, 800L, 200L, 800L, 200L, 1000L)
+        } else {
+            longArrayOf(0L, 600L, 400L, 600L, 800L)
+        }
         val effect = VibrationEffect.createWaveform(pattern, 0)
         getVibrator()?.vibrate(effect)
     }

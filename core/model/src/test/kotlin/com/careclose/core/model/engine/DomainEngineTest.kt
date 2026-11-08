@@ -417,5 +417,27 @@ class DomainEngineTest {
         assertFalse(notifOnly.quickReturnMode.isBubbleEnabled)
         assertTrue(notifOnly.quickReturnMode.isNotificationEnabled)
     }
+
+    @Test
+    fun `verifies EmergencyPing care event types and caregiverPhone in PlanSnapshot`() {
+        val plan = basePlan().copy(caregiverPhone = "+380509998877")
+        val jsonStr = CareCloseJson.instance.encodeToString(PlanSnapshot.serializer(), plan)
+        val decoded = CareCloseJson.instance.decodeFromString(PlanSnapshot.serializer(), jsonStr)
+        assertEquals("+380509998877", decoded.caregiverPhone)
+
+        val pingEvent = CareEvent(
+            eventId = "evt_ping_1",
+            deviceId = "dev_cg_1",
+            actorRole = Role.CAREGIVER,
+            logicalDate = "2026-11-08",
+            planVersion = 14L,
+            taskId = "emergency_ping",
+            type = CareEventType.EMERGENCY_PING,
+            occurredAtUtc = "2026-11-08T15:00:00Z",
+        )
+        val eventJson = CareCloseJson.instance.encodeToString(CareEvent.serializer(), pingEvent)
+        val decodedEvent = CareCloseJson.instance.decodeFromString(CareEvent.serializer(), eventJson)
+        assertEquals(CareEventType.EMERGENCY_PING, decodedEvent.type)
+    }
 }
 

@@ -180,6 +180,7 @@ fun CaregiverDashboardScreen(
     var editingTask by remember { mutableStateOf<TaskRule?>(null) }
     var showTaskDialog by remember { mutableStateOf(false) }
     var showAnchorDialog by remember { mutableStateOf(false) }
+    var showEmergencyDialog by remember { mutableStateOf(false) }
 
     suspend fun publishUpdatedPlan(
         updatedPlan: PlanSnapshot,
@@ -321,40 +322,53 @@ fun CaregiverDashboardScreen(
                     }
                 },
                 actions = {
-                    if (isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 16.dp)
-                                .size(22.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        IconButton(
-                            onClick = {
-                                val engine = syncEngineProvider()
-                                if (engine == null) {
-                                    statusBanner = "Google Drive ще не підключено"
-                                    return@IconButton
-                                }
-                                isSyncing = true
-                                scope.launch {
-                                    val res = runCatching {
-                                        withContext(Dispatchers.IO) {
-                                            engine.syncOnce()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (activePlan != null) {
+                            IconButton(
+                                onClick = { showEmergencyDialog = true },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Call,
+                                    contentDescription = "Екстрений зв'язок",
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(end = 16.dp)
+                                    .size(22.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            IconButton(
+                                onClick = {
+                                    val engine = syncEngineProvider()
+                                    if (engine == null) {
+                                        statusBanner = "Google Drive ще не підключено"
+                                        return@IconButton
+                                    }
+                                    isSyncing = true
+                                    scope.launch {
+                                        val res = runCatching {
+                                            withContext(Dispatchers.IO) {
+                                                engine.syncOnce()
+                                            }
+                                        }
+                                        isSyncing = false
+                                        res.onSuccess { report ->
+                                            currentInstant = Instant.now()
+                                            statusBanner = "Синхронізовано: +${report.importedEventsCount} подій"
+                                            onScheduleOrSyncUpdated()
+                                        }.onFailure { err ->
+                                            statusBanner = "Помилка синхронізації: ${err.message}"
                                         }
                                     }
-                                    isSyncing = false
-                                    res.onSuccess { report ->
-                                        currentInstant = Instant.now()
-                                        statusBanner = "Синхронізовано: +${report.importedEventsCount} подій"
-                                        onScheduleOrSyncUpdated()
-                                    }.onFailure { err ->
-                                        statusBanner = "Помилка синхронізації: ${err.message}"
-                                    }
-                                }
-                            },
-                        ) {
-                            Icon(imageVector = Icons.Rounded.Refresh, contentDescription = "Синхронізувати")
+                                },
+                            ) {
+                                Icon(imageVector = Icons.Rounded.Refresh, contentDescription = "Синхронізувати")
+                            }
                         }
                     }
                 },
@@ -546,6 +560,7 @@ fun CaregiverDashboardScreen(
                                 planVersion = plan.planVersion + 1L,
                                 effectiveFromUtc = Instant.now().toString(),
                                 emergencyContact = contact,
+                                caregiverPhone = contact.phone,
                             )
                             scope.launch {
                                 runCatching { publishUpdatedPlan(updated) }
@@ -690,6 +705,50 @@ fun CaregiverDashboardScreen(
         ShareHelperDialog(
             pairing = pairing,
             onDismiss = { showShareHelperDialog = false },
+        )
+    }
+
+    if (showEmergencyDialog && currentPlan != null) {
+        EmergencyConnectionDialog(
+            plan = currentPlan,
+            allEvents = allEvents,
+            onDismiss = { showEmergencyDialog = false },
+            onTriggerSiren = {
+                scope.launch {
+                    val event = CareEvent(
+                        eventId = java.util.UUID.randomUUID().toString(),
+                        deviceId = deviceConfigStore.getDeviceId(),
+                        actorRole = Role.CAREGIVER,
+                        logicalDate = selectedDate.toString(),
+                        planVersion = currentPlan.planVersion,
+                        taskId = "emergency_siren",
+                        type = CareEventType.EMERGENCY_PING,
+                        occurredAtUtc = Instant.now().toString(),
+                        note = "Caregiver emergency ping",
+                    )
+                    repository.recordLocalEvent(event)
+                    onLocalEventRecorded()
+                    statusBanner = "Екстрений сигнал сирени надіслано на пристрій підопічного"
+                }
+            },
+            onStopSiren = {
+                scope.launch {
+                    val event = CareEvent(
+                        eventId = java.util.UUID.randomUUID().toString(),
+                        deviceId = deviceConfigStore.getDeviceId(),
+                        actorRole = Role.CAREGIVER,
+                        logicalDate = selectedDate.toString(),
+                        planVersion = currentPlan.planVersion,
+                        taskId = "emergency_siren",
+                        type = CareEventType.EMERGENCY_PING_DISMISSED,
+                        occurredAtUtc = Instant.now().toString(),
+                        note = "Caregiver stopped siren",
+                    )
+                    repository.recordLocalEvent(event)
+                    onLocalEventRecorded()
+                    statusBanner = "Сирену зупинено"
+                }
+            },
         )
     }
 }
@@ -1543,4 +1602,136 @@ private fun statusLabelUk(item: ResolvedDailyTask): String {
         ResolvedTaskStatus.MISSED_ONLINE -> "❗ Пропуск (онлайн)"
         ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> "⚠️ Пропуск (офлайн)"
     }
+}
+
+@Composable
+private fun EmergencyConnectionDialog(
+    plan: PlanSnapshot,
+    allEvents: List<CareEvent>,
+    onDismiss: () -> Unit,
+    onTriggerSiren: () -> Unit,
+    onStopSiren: () -> Unit,
+) {
+    val context = LocalContext.current
+    val contact = plan.emergencyContact
+    val elderPhone = contact?.phone?.takeIf { it.isNotBlank() }
+    val elderName = CareCloseWording.recipientDisplayName(plan)
+
+    val lastPing = remember(allEvents) {
+        allEvents.filter { it.type == CareEventType.EMERGENCY_PING }
+            .maxByOrNull { it.occurredAtUtc }
+    }
+    val isDismissed = remember(allEvents, lastPing) {
+        if (lastPing == null) true
+        else allEvents.any {
+            it.type == CareEventType.EMERGENCY_PING_DISMISSED &&
+                it.occurredAtUtc >= lastPing.occurredAtUtc
+        }
+    }
+    val isSirenActive = lastPing != null && !isDismissed
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🚨 Екстрений зв'язок")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    text = "Зв'язок із: $elderName",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("1. Прямий мобільний дзвінок", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Якщо ваш номер додано в «Обрані контакти» у телефоні підопічного, виклик пробиває режим «Не турбувати» миттєво і без інтернету.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (elderPhone != null) {
+                            Button(
+                                onClick = {
+                                    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${elderPhone.trim()}"))
+                                    context.startActivity(dialIntent)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00695C)),
+                            ) {
+                                Icon(Icons.Rounded.Call, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Подзвонити на $elderPhone")
+                            }
+                        } else {
+                            Text(
+                                "Номер підопічного не вказано в налаштуваннях.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSirenActive) MaterialTheme.colorScheme.errorContainer
+                        else MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "2. Пошукова сирена CareClose",
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "Вмикає на телефоні підопічного звук тривоги на 100% гучності поверх беззвучного режиму та запалює екран.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+
+                        if (isSirenActive) {
+                            val time = lastPing?.occurredAtUtc?.let {
+                                runCatching {
+                                    val instant = Instant.parse(it)
+                                    val lt = instant.atZone(plan.safeZoneId).toLocalTime()
+                                    String.format("%02d:%02d", lt.hour, lt.minute)
+                                }.getOrNull()
+                            } ?: ""
+                            Text(
+                                text = "⚠️ Сирену активовано о $time. Очікуємо відповіді підопічного...",
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            OutlinedButton(
+                                onClick = onStopSiren,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Зупинити сирену")
+                            }
+                        } else {
+                            Button(
+                                onClick = onTriggerSiren,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                            ) {
+                                Text("Увімкнути сирену на телефоні")
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Закрити")
+            }
+        },
+    )
 }

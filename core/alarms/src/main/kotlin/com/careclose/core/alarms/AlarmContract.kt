@@ -22,6 +22,7 @@ enum class AlarmKind {
     TASK_DUE,
     TASK_ESCALATION_REPEAT,
     ANCHOR_SOFT_REMINDER,
+    EMERGENCY_CALL_PING,
 }
 
 @Serializable
@@ -48,6 +49,7 @@ data class AlarmPermissionStatus(
     val isIgnoringBatteryOptimizations: Boolean,
     val canPostNotifications: Boolean,
     val canDrawOverlays: Boolean = true,
+    val canAccessNotificationPolicy: Boolean = true,
 ) {
     val allCriticalGranted: Boolean
         get() = canScheduleExactAlarms && canUseFullScreenIntent && canPostNotifications
@@ -89,13 +91,28 @@ object AlarmPermissionChecker {
             true
         }
 
+        val dndAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            notificationManager?.isNotificationPolicyAccessGranted == true
+        } else {
+            true
+        }
+
         return AlarmPermissionStatus(
             canScheduleExactAlarms = exactAlarms,
             canUseFullScreenIntent = fullScreenIntent,
             isIgnoringBatteryOptimizations = batteryUnrestricted,
             canPostNotifications = postNotifications,
             canDrawOverlays = drawOverlays,
+            canAccessNotificationPolicy = dndAccess,
         )
+    }
+
+    fun notificationPolicySettingsIntent(): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+        } else {
+            Intent(Settings.ACTION_SETTINGS)
+        }
     }
 
     fun overlaySettingsIntent(context: Context): Intent {

@@ -9,6 +9,7 @@ import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.careclose.core.alarms.AlarmExtras
+import com.careclose.core.alarms.AlarmKind
 import com.careclose.core.alarms.AlarmPayload
 import com.careclose.core.alarms.audio.ElderAlarmAudioPlayer
 import com.careclose.core.alarms.notification.AlarmNotificationHelper
@@ -63,14 +64,17 @@ class AlarmRingingService : Service() {
             startForeground(AlarmNotificationHelper.ELDER_ALARM_NOTIFICATION_ID, notification)
         }
 
+        val isEmergency = payload.kind == AlarmKind.EMERGENCY_CALL_PING
         audioPlayer.start(
             voiceMediaPath = payload.voiceMediaPath,
-            vibrate = payload.criticality == Criticality.CRITICAL,
+            vibrate = payload.criticality == Criticality.CRITICAL || isEmergency,
+            isEmergency = isEmergency,
         )
 
         autoSilenceJob?.cancel()
         autoSilenceJob = serviceScope.launch {
-            delay(AUTO_SILENCE_MS)
+            val silenceTimeout = if (isEmergency) 3 * 60 * 1000L else AUTO_SILENCE_MS
+            delay(silenceTimeout)
             stopAndCleanup()
         }
 

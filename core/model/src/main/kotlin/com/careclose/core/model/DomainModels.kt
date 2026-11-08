@@ -79,6 +79,8 @@ enum class CareEventType {
     SNOOZED,
     SKIPPED,
     CAREGIVER_OVERRIDE_TAKEN,
+    EMERGENCY_PING,
+    EMERGENCY_PING_DISMISSED,
 }
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -186,6 +188,7 @@ data class PlanSnapshot(
     val recipientRole: RecipientRole = RecipientRole.OTHER,
     val recipientName: String? = null,
     val caregiverRole: CaregiverRole = CaregiverRole.OTHER,
+    val caregiverPhone: String? = null,
     val emergencyContact: EmergencyContact? = null,
     val anchors: List<AnchorRule> = emptyList(),
     val tasks: List<TaskRule> = emptyList(),
