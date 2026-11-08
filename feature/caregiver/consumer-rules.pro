@@ -1,0 +1,2 @@
+# Caregiver UI ProGuard rules
+

@@ -1,0 +1,2 @@
+# CareClose ProGuard rules
+

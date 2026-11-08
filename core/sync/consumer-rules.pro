@@ -1,0 +1,2 @@
+# Keep serialized sync DTOs
+
