@@ -47,6 +47,33 @@ CareClose_Family/
 }
 ```
 
+`plan_v14.json`:
+```json
+{
+  "schemaVersion": 1,
+  "planVersion": 14,
+  "effectiveFromUtc": "2026-11-08T00:00:00Z",
+  "timezone": "Europe/Kyiv",
+  "recipientRole": "MOTHER",
+  "recipientName": "Мама",
+  "caregiverRole": "DAUGHTER",
+  "caregiverPhone": "+380501234567",
+  "quickReturnMode": "BOTH",
+  "emergencyContact": {
+    "name": "Олексій (Син)",
+    "phone": "+380509876543"
+  },
+  "anchors": [ ... ],
+  "tasks": [ ... ]
+}
+```
+
+### Режими швидкого повернення (`quickReturnMode`):
+- `BOTH` — Плаваюча кнопка поверх вікон + Закріплене сповіщення у шторці (Рекомендовано).
+- `FLOATING_BUBBLE_ONLY` — Тільки плаваюча кнопка поверх вікон.
+- `ONGOING_NOTIFICATION_ONLY` — Тільки закріплене сповіщення у шторці.
+- `DISABLED` — Вимкнено (звичайний запуск підопічним з іконки додатку).
+
 ### Примітка щодо `RELATIVE_TO_ANCHOR`
 - Позитивний зсув (`offsetMinutes >= 0`, наприклад `+20` після сніданку або `0` під час їжі) планується автоматично в момент, коли літня людина підтвердила відповідний якір (`ANCHOR_CONFIRMED`).
 - Для ліків «до їжі» рекомендується використовувати або окремий якір «Прокинувся» (`offsetMinutes >= 0`), або фіксований режим `FIXED`.
@@ -61,6 +88,8 @@ CareClose_Family/
 - `SNOOZED` — відкладено до `snoozeUntilUtc`.
 - `SKIPPED` — свідомо пропущено.
 - `CAREGIVER_OVERRIDE_TAKEN` — дорослий відмітив виконання зі свого пристрою («я поруч»).
+- `EMERGENCY_PING` — опікун дистанційно активував пошукову сирену на пристрої підопічного.
+- `EMERGENCY_PING_DISMISSED` — підопічний або опікун підтвердив «Я тут, усе гаразд» / зупинив сирену.
 
 ## 4. `presence/{deviceId}.json`
 
