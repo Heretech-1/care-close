@@ -11,8 +11,10 @@ import com.careclose.core.database.CareCloseDatabase
 import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.preferences.SharedPrefsDeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
+import com.careclose.core.database.repository.DelegatingCareCloseRepository
 import com.careclose.core.database.repository.RoomCareCloseRepository
 import com.careclose.core.model.Role
+import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.ResolvedTaskStatus
 import com.careclose.core.sync.AndroidSyncConfigStore
@@ -31,13 +33,30 @@ import java.time.ZoneId
 
 class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDependenciesProvider {
 
-    val database: CareCloseDatabase by lazy {
-        CareCloseDatabase.build(this)
+    private val databases = mutableMapOf<String, CareCloseDatabase>()
+    private val repositories = mutableMapOf<String, CareCloseRepository>()
+
+    fun getDatabaseForProfile(profileId: String?): CareCloseDatabase {
+        val key = profileId?.takeIf { it.isNotBlank() } ?: "default"
+        return synchronized(databases) {
+            databases.getOrPut(key) {
+                val dbName = if (key == "default") "careclose.db" else "careclose_$key.db"
+                CareCloseDatabase.build(this, dbName)
+            }
+        }
     }
 
-    override val careCloseRepository: CareCloseRepository by lazy {
-        RoomCareCloseRepository(database)
+    fun getRepositoryForProfile(profileId: String?): CareCloseRepository {
+        val key = profileId?.takeIf { it.isNotBlank() } ?: "default"
+        return synchronized(repositories) {
+            repositories.getOrPut(key) {
+                RoomCareCloseRepository(getDatabaseForProfile(profileId))
+            }
+        }
     }
+
+    override val careCloseRepository: CareCloseRepository
+        get() = getRepositoryForProfile(androidSyncStore.getActiveProfileId())
 
     override val deviceConfigStore: DeviceConfigStore by lazy {
         SharedPrefsDeviceConfigStore(this)
@@ -46,7 +65,7 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
     override val alarmCoordinator: AlarmCoordinator by lazy {
         AlarmCoordinator(
             context = this,
-            repository = careCloseRepository,
+            repository = DelegatingCareCloseRepository { careCloseRepository },
             deviceConfigStore = deviceConfigStore,
         )
     }
@@ -58,12 +77,16 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
     override val syncConfigStore: SyncConfigStore
         get() = androidSyncStore
 
-    override val presenceCollector: AndroidPresenceCollector by lazy {
-        AndroidPresenceCollector(
+    override val presenceCollector: AndroidPresenceCollector
+        get() = AndroidPresenceCollector(
             context = this,
             repository = careCloseRepository,
             deviceConfigStore = deviceConfigStore,
         )
+
+    fun switchProfile(profileId: String) {
+        androidSyncStore.setActiveProfileId(profileId)
+        invalidateSyncEngine()
     }
 
     @Volatile
@@ -128,8 +151,8 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
                         AlarmNotificationHelper.postCaregiverAlert(
                             context = this,
                             notificationId = task.task.id.hashCode(),
-                            title = "Немає підтвердження: ${task.task.title}",
-                            body = "Дедлайн минув, але телефон підопічного був онлайн. Варто зателефонувати.",
+                            title = CareCloseWording.caregiverAlertTitleMissed(plan, task.task.title),
+                            body = CareCloseWording.caregiverAlertBodyMissedOnline(plan),
                         )
                     }
 
@@ -137,8 +160,8 @@ class CareCloseApplication : Application(), AlarmDependenciesProvider, SyncDepen
                         AlarmNotificationHelper.postCaregiverAlert(
                             context = this,
                             notificationId = task.task.id.hashCode(),
-                            title = "Немає зв'язку та підтвердження: ${task.task.title}",
-                            body = "Телефон підопічного не виходив на зв'язок перед дедлайном.",
+                            title = CareCloseWording.caregiverAlertTitleMissed(plan, task.task.title),
+                            body = CareCloseWording.caregiverAlertBodyMissedOffline(plan),
                         )
                     }
 

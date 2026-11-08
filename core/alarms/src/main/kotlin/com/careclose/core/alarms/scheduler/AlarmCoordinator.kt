@@ -241,6 +241,7 @@ class AlarmCoordinator(
                 photoMediaPath = photoPath,
                 scheduledAtUtc = scheduledAt.toString(),
                 attemptNumber = attempt,
+                recipientGender = plan.recipientRole.gender,
             )
         }
 
@@ -259,6 +260,7 @@ class AlarmCoordinator(
                 subtitle = "Підтвердіть у додатку, коли почнете",
                 criticality = Criticality.SOFT,
                 scheduledAtUtc = (it.softReminderAt ?: now).toString(),
+                recipientGender = plan.recipientRole.gender,
             )
         }
     }

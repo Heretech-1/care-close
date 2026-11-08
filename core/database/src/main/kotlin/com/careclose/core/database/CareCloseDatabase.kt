@@ -44,11 +44,11 @@ abstract class CareCloseDatabase : RoomDatabase() {
     companion object {
         private const val DB_NAME = "careclose.db"
 
-        fun build(context: Context): CareCloseDatabase {
+        fun build(context: Context, dbName: String = DB_NAME): CareCloseDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
                 CareCloseDatabase::class.java,
-                DB_NAME,
+                dbName,
             ).build()
         }
     }

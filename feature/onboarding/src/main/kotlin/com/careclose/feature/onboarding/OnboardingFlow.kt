@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,8 +40,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.FamilyManifest
 import com.careclose.core.model.PairingQrPayload
+import com.careclose.core.model.RecipientRole
 import com.careclose.core.model.Role
 import com.careclose.core.sync.SyncConfigStore
 import com.careclose.core.sync.SyncEngine
@@ -62,6 +67,7 @@ private enum class OnboardingStep {
     ELDER_PERMISSIONS,
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen(
     syncConfigStore: SyncConfigStore,
@@ -69,8 +75,13 @@ fun OnboardingScreen(
     onRoleSelected: (Role) -> Unit,
     onFinishOnboarding: (Role) -> Unit,
     modifier: Modifier = Modifier,
+    isAddingNewProfile: Boolean = false,
+    onCancelAddingProfile: (() -> Unit)? = null,
+    onProfileConfigured: ((RecipientRole, CaregiverRole, String) -> Unit)? = null,
 ) {
-    var step by remember { mutableStateOf(OnboardingStep.CHOOSE_ROLE) }
+    var step by remember {
+        mutableStateOf(if (isAddingNewProfile) OnboardingStep.CAREGIVER_DRIVE_SETUP else OnboardingStep.CHOOSE_ROLE)
+    }
 
     Column(
         modifier = modifier
@@ -96,8 +107,12 @@ fun OnboardingScreen(
                 CaregiverDriveSetupStep(
                     syncConfigStore = syncConfigStore,
                     onCreateSyncEngineForPayload = onCreateSyncEngineForPayload,
-                    onBack = { step = OnboardingStep.CHOOSE_ROLE },
-                    onComplete = { onFinishOnboarding(Role.CAREGIVER) },
+                    isAddingNewProfile = isAddingNewProfile,
+                    onBack = onCancelAddingProfile ?: { step = OnboardingStep.CHOOSE_ROLE },
+                    onComplete = { recipientRole, caregiverRole, familyName ->
+                        onProfileConfigured?.invoke(recipientRole, caregiverRole, familyName)
+                        onFinishOnboarding(Role.CAREGIVER)
+                    },
                 )
             }
 
@@ -163,20 +178,26 @@ private fun ChooseRoleStep(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CaregiverDriveSetupStep(
     syncConfigStore: SyncConfigStore,
     onCreateSyncEngineForPayload: (PairingQrPayload) -> SyncEngine,
+    isAddingNewProfile: Boolean = false,
     onBack: () -> Unit,
-    onComplete: () -> Unit,
+    onComplete: (RecipientRole, CaregiverRole, String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val existing = remember { syncConfigStore.getPairingPayload() }
+    val existing = remember { if (isAddingNewProfile) null else syncConfigStore.getPairingPayload() }
 
+    var recipientRole by remember { mutableStateOf(RecipientRole.MOTHER) }
+    var caregiverRole by remember { mutableStateOf(CaregiverRole.DAUGHTER) }
     var familyName by remember { mutableStateOf(existing?.familyName ?: "Мама") }
     var folderInput by remember { mutableStateOf(existing?.folderId ?: "") }
-    var saJson by remember { mutableStateOf(existing?.serviceAccountJson ?: "") }
+    var saJson by remember {
+        mutableStateOf(existing?.serviceAccountJson ?: syncConfigStore.getPairingPayload()?.serviceAccountJson ?: "")
+    }
     var isBusy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var qrString by remember {
@@ -204,22 +225,63 @@ private fun CaregiverDriveSetupStep(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text("← Назад до вибору ролі") }
+        TextButton(onClick = onBack) {
+            Text(if (isAddingNewProfile) "← Скасувати" else "← Назад до вибору ролі")
+        }
 
         Text(
-            text = "Підключення Google Drive (Опікун)",
+            text = if (isAddingNewProfile) "Додати нового підопічного" else "Підключення Google Drive (Опікун)",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Розшарте папку на Google Drive для email вашого Service Account з правами Редактора та вкажіть посилання нижче.",
+            text = "Створіть окрему папку на Google Drive для цієї близької людини та надайте доступ для Service Account з правами Редактора.",
             style = MaterialTheme.typography.bodyMedium,
         )
+
+        Text("Кого ви доглядаєте?", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                RecipientRole.MOTHER to "Мама",
+                RecipientRole.FATHER to "Тато",
+                RecipientRole.GRANDMOTHER to "Бабуся",
+                RecipientRole.GRANDFATHER to "Дідусь",
+                RecipientRole.OTHER to "Інше",
+            ).forEach { (role, label) ->
+                FilterChip(
+                    selected = recipientRole == role,
+                    onClick = {
+                        recipientRole = role
+                        if (familyName.isBlank() || familyName in listOf("Мама", "Тато", "Бабуся", "Дідусь", "Підопічний")) {
+                            familyName = label
+                        }
+                    },
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Text("Хто ви для підопічного?", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                CaregiverRole.DAUGHTER to "Донька",
+                CaregiverRole.SON to "Син",
+                CaregiverRole.GRANDDAUGHTER to "Онука",
+                CaregiverRole.GRANDSON to "Онук",
+                CaregiverRole.OTHER to "Опікун",
+            ).forEach { (role, label) ->
+                FilterChip(
+                    selected = caregiverRole == role,
+                    onClick = { caregiverRole = role },
+                    label = { Text(label) },
+                )
+            }
+        }
 
         OutlinedTextField(
             value = familyName,
             onValueChange = { familyName = it },
-            label = { Text("Ім'я підопічного (напр. Мама)") },
+            label = { Text("Звертання / Ім'я (напр. Мама)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -340,7 +402,7 @@ private fun CaregiverDriveSetupStep(
             }
 
             Button(
-                onClick = onComplete,
+                onClick = { onComplete(recipientRole, caregiverRole, familyName) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -349,7 +411,7 @@ private fun CaregiverDriveSetupStep(
             }
         } else {
             TextButton(
-                onClick = onComplete,
+                onClick = { onComplete(recipientRole, caregiverRole, familyName) },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text("Продовжити офлайн (без Drive)")

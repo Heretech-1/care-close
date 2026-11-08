@@ -47,6 +47,7 @@ import com.careclose.core.model.CareCloseJson
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
 import com.careclose.core.model.Role
+import com.careclose.core.model.engine.CareCloseWording
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -297,7 +298,7 @@ private fun FullScreenAlarmContent(
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
                     ) {
                         Text(
-                            text = "ПРИЙНЯТО / ЗРОБИВ",
+                            text = CareCloseWording.elderActionTakenButton(payload.recipientGender),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,

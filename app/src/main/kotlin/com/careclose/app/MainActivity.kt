@@ -12,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,11 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.careclose.app.ui.theme.CareCloseTheme
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.EmergencyContact
 import com.careclose.core.model.EscalationPolicy
 import com.careclose.core.model.PillInventory
 import com.careclose.core.model.PlanSnapshot
+import com.careclose.core.model.RecipientRole
 import com.careclose.core.model.Role
 import com.careclose.core.model.ScheduleRule
 import com.careclose.core.model.TaskRule
@@ -62,24 +65,84 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun CareCloseShell(app: CareCloseApplication) {
-    val repository = app.careCloseRepository
+    var activeProfileId by remember { mutableStateOf(app.syncConfigStore.getActiveProfileId()) }
+    val repository = remember(activeProfileId) { app.careCloseRepository }
     val deviceConfigStore = app.deviceConfigStore
     val alarmCoordinator = app.alarmCoordinator
 
     var activeRole by remember { mutableStateOf(deviceConfigStore.getRole()) }
     var showOnboarding by remember { mutableStateOf(activeRole == null) }
+    var isAddingNewProfile by remember { mutableStateOf(false) }
     var showElderPermissions by remember { mutableStateOf(false) }
+    var configuredRoles by remember { mutableStateOf<Triple<RecipientRole, CaregiverRole, String?>?>(null) }
 
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(activeRole, showOnboarding) {
-        if (!showOnboarding && activeRole != null && repository.getActivePlan() == null) {
-            repository.saveActivePlan(createSamplePlan())
+    LaunchedEffect(activeRole, showOnboarding, activeProfileId) {
+        if (!showOnboarding && !isAddingNewProfile && activeRole != null && repository.getActivePlan() == null) {
+            repository.saveActivePlan(
+                createSamplePlan(
+                    recipientRole = configuredRoles?.first ?: RecipientRole.MOTHER,
+                    caregiverRole = configuredRoles?.second ?: CaregiverRole.DAUGHTER,
+                    recipientName = configuredRoles?.third,
+                ),
+            )
             alarmCoordinator.rescheduleForCurrentRole()
         }
     }
 
     when {
+        isAddingNewProfile -> {
+            Scaffold { innerPadding ->
+                OnboardingScreen(
+                    syncConfigStore = app.syncConfigStore,
+                    isAddingNewProfile = true,
+                    onCreateSyncEngineForPayload = { payload ->
+                        app.invalidateSyncEngine()
+                        SyncEngine(
+                            transport = GoogleDriveServiceAccountTransport(payload.serviceAccountJson),
+                            repository = app.getRepositoryForProfile(payload.familyId),
+                            crypto = FamilyCrypto(payload.familyAesKeyBase64),
+                            checkpointStore = AndroidSyncConfigStore(app),
+                            rootFolderId = payload.folderId,
+                            deviceId = deviceConfigStore.getDeviceId(),
+                        )
+                    },
+                    onRoleSelected = {},
+                    onProfileConfigured = { recRole, cgRole, famName ->
+                        configuredRoles = Triple(recRole, cgRole, famName)
+                    },
+                    onFinishOnboarding = {
+                        isAddingNewProfile = false
+                        val newId = app.syncConfigStore.getActiveProfileId() ?: ""
+                        activeProfileId = newId
+                        app.switchProfile(newId)
+                        scope.launch {
+                            withTimeoutOrNull(4_000L) {
+                                withContext(Dispatchers.IO) {
+                                    runCatching { app.getOrCreateSyncEngine()?.pullAll() }
+                                }
+                            }
+                            if (app.careCloseRepository.getActivePlan() == null) {
+                                app.careCloseRepository.saveActivePlan(
+                                    createSamplePlan(
+                                        recipientRole = configuredRoles?.first ?: RecipientRole.MOTHER,
+                                        caregiverRole = configuredRoles?.second ?: CaregiverRole.DAUGHTER,
+                                        recipientName = configuredRoles?.third,
+                                    ),
+                                )
+                            }
+                            alarmCoordinator.rescheduleForCurrentRole()
+                        }
+                    },
+                    onCancelAddingProfile = {
+                        isAddingNewProfile = false
+                    },
+                    modifier = Modifier.padding(innerPadding),
+                )
+            }
+        }
+
         showOnboarding || activeRole == null -> {
             Scaffold { innerPadding ->
                 OnboardingScreen(
@@ -99,9 +162,13 @@ private fun CareCloseShell(app: CareCloseApplication) {
                         activeRole = chosen
                         deviceConfigStore.setRole(chosen)
                     },
+                    onProfileConfigured = { recRole, cgRole, famName ->
+                        configuredRoles = Triple(recRole, cgRole, famName)
+                    },
                     onFinishOnboarding = { finishedRole ->
                         activeRole = finishedRole
                         deviceConfigStore.setRole(finishedRole)
+                        activeProfileId = app.syncConfigStore.getActiveProfileId()
                         app.invalidateSyncEngine()
                         if (finishedRole == Role.ELDER && app.syncConfigStore.isPaired()) {
                             SyncScheduler.ensurePeriodicElderSync(app)
@@ -117,7 +184,13 @@ private fun CareCloseShell(app: CareCloseApplication) {
                                 }
                             }
                             if (repository.getActivePlan() == null) {
-                                repository.saveActivePlan(createSamplePlan())
+                                repository.saveActivePlan(
+                                    createSamplePlan(
+                                        recipientRole = configuredRoles?.first ?: RecipientRole.MOTHER,
+                                        caregiverRole = configuredRoles?.second ?: CaregiverRole.DAUGHTER,
+                                        recipientName = configuredRoles?.third,
+                                    ),
+                                )
                             }
                             alarmCoordinator.rescheduleForCurrentRole()
                             showOnboarding = false
@@ -157,35 +230,54 @@ private fun CareCloseShell(app: CareCloseApplication) {
         }
 
         else -> {
-            CaregiverDashboardScreen(
-                repository = repository,
-                deviceConfigStore = deviceConfigStore,
-                syncConfigStore = app.syncConfigStore,
-                syncEngineProvider = { app.getOrCreateSyncEngine() },
-                onLocalEventRecorded = {
-                    app.onLocalEventRecorded()
-                    alarmCoordinator.rescheduleForCurrentRole()
-                },
-                onScheduleOrSyncUpdated = {
-                    app.onSyncPullCompleted()
-                },
-                onRunTestMissedCheck = {
-                    app.caregiverCheckHandler.runPredictiveCheck()
-                },
-                onOpenOnboardingSettings = {
-                    showOnboarding = true
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+            key(activeProfileId) {
+                CaregiverDashboardScreen(
+                    repository = repository,
+                    deviceConfigStore = deviceConfigStore,
+                    syncConfigStore = app.syncConfigStore,
+                    syncEngineProvider = { app.getOrCreateSyncEngine() },
+                    onLocalEventRecorded = {
+                        app.onLocalEventRecorded()
+                        alarmCoordinator.rescheduleForCurrentRole()
+                    },
+                    onScheduleOrSyncUpdated = {
+                        app.onSyncPullCompleted()
+                    },
+                    onRunTestMissedCheck = {
+                        app.caregiverCheckHandler.runPredictiveCheck()
+                    },
+                    onOpenOnboardingSettings = {
+                        showOnboarding = true
+                    },
+                    onSwitchProfile = { profileId ->
+                        app.switchProfile(profileId)
+                        activeProfileId = profileId
+                        scope.launch {
+                            alarmCoordinator.rescheduleForCurrentRole()
+                        }
+                    },
+                    onAddNewElderProfile = {
+                        isAddingNewProfile = true
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
 
-private fun createSamplePlan(): PlanSnapshot {
+private fun createSamplePlan(
+    recipientRole: RecipientRole = RecipientRole.MOTHER,
+    caregiverRole: CaregiverRole = CaregiverRole.DAUGHTER,
+    recipientName: String? = null,
+): PlanSnapshot {
     return PlanSnapshot(
         planVersion = 1L,
         effectiveFromUtc = Instant.now().toString(),
         timezone = ZoneId.systemDefault().id,
+        recipientRole = recipientRole,
+        recipientName = recipientName,
+        caregiverRole = caregiverRole,
         emergencyContact = EmergencyContact(name = "Олексій", phone = "+380501234567"),
         anchors = listOf(
             AnchorRule(

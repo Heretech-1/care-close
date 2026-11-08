@@ -172,3 +172,25 @@ class RoomCareCloseRepository(
     }
 }
 
+class DelegatingCareCloseRepository(
+    private val delegateProvider: () -> CareCloseRepository,
+) : CareCloseRepository {
+    private val target get() = delegateProvider()
+
+    override fun observeActivePlan(): Flow<PlanSnapshot?> = target.observeActivePlan()
+    override suspend fun getActivePlan(): PlanSnapshot? = target.getActivePlan()
+    override suspend fun saveActivePlan(plan: PlanSnapshot, savedAtUtc: Instant) = target.saveActivePlan(plan, savedAtUtc)
+    override fun observeEventsForDate(logicalDate: String): Flow<List<CareEvent>> = target.observeEventsForDate(logicalDate)
+    override fun observeAllEvents(): Flow<List<CareEvent>> = target.observeAllEvents()
+    override suspend fun recordLocalEvent(event: CareEvent) = target.recordLocalEvent(event)
+    override suspend fun importRemoteEvents(events: List<CareEvent>) = target.importRemoteEvents(events)
+    override suspend fun getPendingUploadEvents(): List<CareEvent> = target.getPendingUploadEvents()
+    override suspend fun markEventsSynced(eventIds: List<String>) = target.markEventsSynced(eventIds)
+    override suspend fun recordSyncAttemptFailure(eventIds: List<String>, attemptAt: Instant) = target.recordSyncAttemptFailure(eventIds, attemptAt)
+    override fun observeLatestElderPresence(): Flow<DevicePresence?> = target.observeLatestElderPresence()
+    override suspend fun savePresence(presence: DevicePresence) = target.savePresence(presence)
+    override suspend fun getCachedMedia(mediaId: String): MediaCacheEntity? = target.getCachedMedia(mediaId)
+    override suspend fun saveCachedMedia(media: MediaCacheEntity) = target.saveCachedMedia(media)
+}
+
+

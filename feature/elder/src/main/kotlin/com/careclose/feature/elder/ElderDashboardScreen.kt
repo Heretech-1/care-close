@@ -66,7 +66,9 @@ import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
+import com.careclose.core.model.Gender
 import com.careclose.core.model.Role
+import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.ResolvedDailyAnchor
 import com.careclose.core.model.engine.ResolvedDailyTask
@@ -279,8 +281,14 @@ fun ElderDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        val prefix = activePlan?.let { p ->
+                            CareCloseWording.elderRecordedConfirmation(
+                                CareCloseWording.recipientDisplayName(p),
+                                p.recipientRole.gender,
+                            )
+                        } ?: "Записано"
                         Text(
-                            text = "Записано: ${undoTarget.title}",
+                            text = "$prefix: ${undoTarget.title}",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f),
@@ -323,6 +331,7 @@ fun ElderDashboardScreen(
                         item = activeFocusTask,
                         repository = repository,
                         timeFormatter = clockFormatter,
+                        recipientGender = activePlan?.recipientRole?.gender ?: Gender.UNSPECIFIED,
                         onMarkTaken = {
                             val eventId = UUID.randomUUID().toString()
                             scope.launch {
@@ -454,6 +463,7 @@ private fun FocusTaskCard(
     item: ResolvedDailyTask,
     repository: CareCloseRepository,
     timeFormatter: DateTimeFormatter,
+    recipientGender: Gender = Gender.UNSPECIFIED,
     onMarkTaken: () -> Unit,
     onSnooze: () -> Unit,
 ) {
@@ -566,7 +576,7 @@ private fun FocusTaskCard(
                     Icon(imageVector = Icons.Rounded.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ПРИЙНЯТО / ЗРОБИВ",
+                        text = CareCloseWording.elderActionTakenButton(recipientGender),
                         fontSize = 21.sp,
                         fontWeight = FontWeight.Bold,
                     )

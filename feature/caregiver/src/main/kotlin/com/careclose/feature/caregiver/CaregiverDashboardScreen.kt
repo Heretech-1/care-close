@@ -2,6 +2,8 @@ package com.careclose.feature.caregiver
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.Delete
@@ -28,8 +31,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -62,12 +69,15 @@ import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.model.AnchorRule
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
+import com.careclose.core.model.CaregiverRole
 import com.careclose.core.model.Criticality
 import com.careclose.core.model.EmergencyContact
 import com.careclose.core.model.PlanSnapshot
+import com.careclose.core.model.RecipientRole
 import com.careclose.core.model.Role
 import com.careclose.core.model.ScheduleRule
 import com.careclose.core.model.TaskRule
+import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.InventoryCalculator
 import com.careclose.core.model.engine.InventoryStatus
@@ -96,7 +106,7 @@ private enum class CaregiverTab(val title: String) {
     SETTINGS("Налаштування"),
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CaregiverDashboardScreen(
     repository: CareCloseRepository,
@@ -107,11 +117,17 @@ fun CaregiverDashboardScreen(
     onScheduleOrSyncUpdated: suspend () -> Unit,
     onRunTestMissedCheck: suspend () -> Unit,
     onOpenOnboardingSettings: () -> Unit,
+    onSwitchProfile: (String) -> Unit = {},
+    onAddNewElderProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mediaCacheDir = remember { File(context.filesDir, "careclose_media") }
+
+    val allProfiles = remember(syncConfigStore) { syncConfigStore.getAllProfiles() }
+    val currentProfile = remember(syncConfigStore, allProfiles) { syncConfigStore.getPairingPayload() }
+    var profileMenuExpanded by remember { mutableStateOf(false) }
 
     var activeTab by remember { mutableStateOf(CaregiverTab.TODAY) }
     val activePlan by repository.observeActivePlan().collectAsState(initial = null)
@@ -191,7 +207,52 @@ fun CaregiverDashboardScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("CareClose · Опікун") },
+                title = {
+                    val recipientName = currentProfile?.familyName
+                        ?: activePlan?.let { CareCloseWording.recipientDisplayName(it) }
+                        ?: "Опікун"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "CareClose · $recipientName",
+                            fontWeight = FontWeight.Bold,
+                        )
+                        IconButton(onClick = { profileMenuExpanded = true }) {
+                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = "Вибір підопічного")
+                        }
+                        DropdownMenu(
+                            expanded = profileMenuExpanded,
+                            onDismissRequest = { profileMenuExpanded = false },
+                        ) {
+                            allProfiles.forEach { profile ->
+                                val isSelected = profile.familyId == currentProfile?.familyId
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "${profile.familyName} ${if (isSelected) "✓" else ""}",
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    },
+                                    onClick = {
+                                        profileMenuExpanded = false
+                                        if (!isSelected) {
+                                            onSwitchProfile(profile.familyId)
+                                        }
+                                    },
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("+ Додати підопічного (Мама / Тато)") },
+                                onClick = {
+                                    profileMenuExpanded = false
+                                    onAddNewElderProfile()
+                                },
+                            )
+                        }
+                    }
+                },
                 actions = {
                     if (isSyncing) {
                         CircularProgressIndicator(
@@ -332,6 +393,7 @@ fun CaregiverDashboardScreen(
                         )
                     }
                     TodayDashboardContent(
+                        plan = plan,
                         timeline = timeline,
                         selectedDate = selectedDate,
                         presenceHealth = presenceHealth,
@@ -350,7 +412,7 @@ fun CaregiverDashboardScreen(
                                         taskId = task.task.id,
                                         type = CareEventType.CAREGIVER_OVERRIDE_TAKEN,
                                         occurredAtUtc = Instant.now().toString(),
-                                        note = "Відмічено опікуном",
+                                        note = CareCloseWording.caregiverOverrideNote(plan.caregiverRole),
                                     ),
                                 )
                                 currentInstant = Instant.now()
@@ -419,6 +481,19 @@ fun CaregiverDashboardScreen(
                             scope.launch {
                                 runCatching { publishUpdatedPlan(updated) }
                                     .onFailure { statusBanner = "Помилка публікації: ${it.message}" }
+                            }
+                        },
+                        onUpdateRoles = { recRole, cgRole, customName ->
+                            val updated = plan.copy(
+                                planVersion = plan.planVersion + 1L,
+                                effectiveFromUtc = Instant.now().toString(),
+                                recipientRole = recRole,
+                                caregiverRole = cgRole,
+                                recipientName = customName?.takeIf { it.isNotBlank() },
+                            )
+                            scope.launch {
+                                runCatching { publishUpdatedPlan(updated) }
+                                    .onFailure { statusBanner = "Помилка збереження звертань: ${it.message}" }
                             }
                         },
                     )
@@ -529,6 +604,7 @@ fun CaregiverDashboardScreen(
 
 @Composable
 private fun TodayDashboardContent(
+    plan: PlanSnapshot,
     timeline: com.careclose.core.model.engine.DailyTimeline,
     selectedDate: LocalDate,
     presenceHealth: PresenceHealth,
@@ -547,7 +623,7 @@ private fun TodayDashboardContent(
     ) {
         item {
             Spacer(modifier = Modifier.height(6.dp))
-            PresenceHealthCard(health = presenceHealth)
+            PresenceHealthCard(plan = plan, health = presenceHealth)
         }
 
         item {
@@ -570,6 +646,7 @@ private fun TodayDashboardContent(
 
         items(timeline.tasks, key = { it.task.id }) { item ->
             CaregiverTimelineTaskCard(
+                plan = plan,
                 item = item,
                 timeFormatter = timeFormatter,
                 onOverrideTaken = { onOverrideTaken(item) },
@@ -582,7 +659,7 @@ private fun TodayDashboardContent(
 }
 
 @Composable
-private fun PresenceHealthCard(health: PresenceHealth) {
+private fun PresenceHealthCard(plan: PlanSnapshot, health: PresenceHealth) {
     val hasWarnings = health.warnings.isNotEmpty()
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -591,11 +668,11 @@ private fun PresenceHealthCard(health: PresenceHealth) {
         ),
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val statusTitle = when {
-                health.minutesSinceLastSeen == null -> "Телефон підопічного: ще не синхронізувався"
-                health.isOnline -> "🟢 Підопічний онлайн (${health.minutesSinceLastSeen} хв тому)"
-                else -> "🔴 Немає зв'язку (${health.minutesSinceLastSeen} хв тому)"
-            }
+            val statusTitle = CareCloseWording.onlinePresenceStatus(
+                plan = plan,
+                isOnline = health.isOnline,
+                minutesSinceLastSeen = health.minutesSinceLastSeen,
+            )
             Text(text = statusTitle, fontWeight = FontWeight.Bold)
 
             if (health.batteryPercent != null) {
@@ -622,6 +699,7 @@ private fun PresenceHealthCard(health: PresenceHealth) {
 
 @Composable
 private fun CaregiverTimelineTaskCard(
+    plan: PlanSnapshot,
     item: ResolvedDailyTask,
     timeFormatter: DateTimeFormatter,
     onOverrideTaken: () -> Unit,
@@ -677,13 +755,14 @@ private fun CaregiverTimelineTaskCard(
                 ) {
                     Icon(Icons.Rounded.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Відмітити як виконано (Я поруч)")
+                    Text(CareCloseWording.caregiverOverrideButton(plan.caregiverRole))
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScheduleEditorContent(
     plan: PlanSnapshot,
@@ -692,7 +771,12 @@ private fun ScheduleEditorContent(
     onAddAnchor: () -> Unit,
     onDeleteAnchor: (String) -> Unit,
     onUpdateContact: (EmergencyContact) -> Unit,
+    onUpdateRoles: (RecipientRole, CaregiverRole, String?) -> Unit,
 ) {
+    var selectedRecipientRole by remember(plan.recipientRole) { mutableStateOf(plan.recipientRole) }
+    var selectedCaregiverRole by remember(plan.caregiverRole) { mutableStateOf(plan.caregiverRole) }
+    var recipientCustomName by remember(plan.recipientName) { mutableStateOf(plan.recipientName ?: "") }
+
     var contactName by remember(plan.emergencyContact?.name) {
         mutableStateOf(plan.emergencyContact?.name ?: "Опікун")
     }
@@ -705,6 +789,68 @@ private fun ScheduleEditorContent(
     ) {
         item {
             Spacer(modifier = Modifier.height(6.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Родина та звертання", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Кого ви доглядаєте:", style = MaterialTheme.typography.bodyMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            RecipientRole.MOTHER to "Мама",
+                            RecipientRole.FATHER to "Тато",
+                            RecipientRole.GRANDMOTHER to "Бабуся",
+                            RecipientRole.GRANDFATHER to "Дідусь",
+                            RecipientRole.OTHER to "Інше",
+                        ).forEach { (role, label) ->
+                            FilterChip(
+                                selected = selectedRecipientRole == role,
+                                onClick = { selectedRecipientRole = role },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = recipientCustomName,
+                        onValueChange = { recipientCustomName = it },
+                        label = { Text("Ім'я підопічного (необов'язково)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+
+                    Text("Хто доглядає (ваш статус):", style = MaterialTheme.typography.bodyMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            CaregiverRole.DAUGHTER to "Донька",
+                            CaregiverRole.SON to "Син",
+                            CaregiverRole.GRANDDAUGHTER to "Онука",
+                            CaregiverRole.GRANDSON to "Онук",
+                            CaregiverRole.OTHER to "Опікун",
+                        ).forEach { (role, label) ->
+                            FilterChip(
+                                selected = selectedCaregiverRole == role,
+                                onClick = { selectedCaregiverRole = role },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onUpdateRoles(
+                                selectedRecipientRole,
+                                selectedCaregiverRole,
+                                recipientCustomName.trim().ifEmpty { null },
+                            )
+                        },
+                        modifier = Modifier.align(Alignment.End),
+                    ) {
+                        Text("Зберегти звертання")
+                    }
+                }
+            }
+        }
+
+        item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Кнопка швидкого дзвінка у підопічного", fontWeight = FontWeight.Bold)

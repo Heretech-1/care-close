@@ -13,6 +13,31 @@ enum class Role {
 }
 
 @Serializable
+enum class Gender {
+    MALE,
+    FEMALE,
+    UNSPECIFIED,
+}
+
+@Serializable
+enum class RecipientRole(val defaultTitle: String, val gender: Gender) {
+    MOTHER("Мама", Gender.FEMALE),
+    FATHER("Тато", Gender.MALE),
+    GRANDMOTHER("Бабуся", Gender.FEMALE),
+    GRANDFATHER("Дідусь", Gender.MALE),
+    OTHER("Підопічний", Gender.UNSPECIFIED),
+}
+
+@Serializable
+enum class CaregiverRole(val defaultTitle: String, val gender: Gender) {
+    DAUGHTER("Донька", Gender.FEMALE),
+    SON("Син", Gender.MALE),
+    GRANDDAUGHTER("Онука", Gender.FEMALE),
+    GRANDSON("Онук", Gender.MALE),
+    OTHER("Опікун", Gender.UNSPECIFIED),
+}
+
+@Serializable
 enum class TaskType {
     MEDICATION,
     MEAL,
@@ -123,6 +148,9 @@ data class PlanSnapshot(
     val planVersion: Long,
     val effectiveFromUtc: String,
     val timezone: String = "Europe/Kyiv",
+    val recipientRole: RecipientRole = RecipientRole.OTHER,
+    val recipientName: String? = null,
+    val caregiverRole: CaregiverRole = CaregiverRole.OTHER,
     val emergencyContact: EmergencyContact? = null,
     val anchors: List<AnchorRule> = emptyList(),
     val tasks: List<TaskRule> = emptyList(),
