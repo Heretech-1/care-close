@@ -78,3 +78,4 @@ object CareCloseStrings {
     fun caregiverPinHint(lang: AppLanguage) = if (lang == AppLanguage.ENGLISH) "4-digit PIN to access settings from elder screen" else "4-значний PIN для входу в налаштування з додатку підопічного"
     fun save(lang: AppLanguage) = if (lang == AppLanguage.ENGLISH) "Save" else "Зберегти"
 }
+

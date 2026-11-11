@@ -1,105 +1,108 @@
 # CareClose
 
-**CareClose** — безсерверний парний Android-додаток для підтримки щоденного ритму, прийому ліків та харчування літньої людини з турботою та моніторингом з боку дорослого опікуна через спільну папку Google Drive.
+**CareClose** is a serverless paired Android application designed to support daily routines, medication intake, and nutrition for elderly individuals with compassionate care and monitoring by adult caregivers via a shared Google Drive folder.
 
 ---
 
-## 🌟 Основні можливості
+## 🌟 Key Features
 
-- **🧓 Режим підопічного (Літня людина):**
-  - Максимально контрастний та адаптований інтерфейс з великими шрифтами та зрозумілими кнопками.
-  - Повноекранний будильник поверх замкненого екрана (`AlarmManager.setAlarmClock`).
-  - **Обхід режиму «Не турбувати» (DND Bypass)** та авто-підняття гучності до безпечного чутного рівня, навіть якщо телефон стояв на беззвучному.
-  - **Швидке повернення (Quick Return):** плаваюча серцева кнопка поверх усіх додатків (YouTube, Viber, дзвінки) та закріплене сповіщення у верхній шторці Android з назвою найближчого прийому.
-  - Відтворення голосових нагадувань, записаних рідними («Мамо, випий ліки від тиску»).
-  - Візуалізація ліків: фото таблеток/блістерів та графічні індикатори дозування.
-  - Однокнопкове підтвердження («ПРИЙНЯЛА / ЗРОБИЛА» або «ПРИЙНЯВ / ЗРОБИВ») із захистом від випадкового натискання (5 сек таймер скасування).
-  - **Повноекранна екстрена сирена:** миттєва реакція на пошуковий сигнал від опікуна з великими кнопками «Я ТУТ, УСЕ ГАРАЗД» та «ПОДЗВОНИТИ ОПІКУНУ».
-  - Швидкий виклик рідних в один дотик.
-  - Домашній віджет робочого столу (Jetpack Glance).
+- **🧓 Elder Mode (Senior):**
+  - High-contrast, adaptive UI with large fonts, distinct colors, and self-explanatory buttons.
+  - Full-screen alarm over lock screen (`AlarmManager.setAlarmClock`).
+  - **Do Not Disturb (DND) Bypass** and automatic volume elevation to a safe, audible level even if the phone is muted.
+  - **Quick Return:** floating heart overlay button over all applications (YouTube, Viber, phone calls) and persistent Android notification shade entry showing the next scheduled task.
+  - Audio reminder playback recorded by loved ones ("Mom, please take your blood pressure medication").
+  - Medication visualization: pill/blister photos and graphical dosage indicators.
+  - Single-button confirmation ("TAKEN / DONE") with accidental press protection (5-second cancellation countdown).
+  - **Full-Screen Emergency Siren:** instant response to caregiver search signals with prominent buttons: "I AM HERE, ALL GOOD" and "CALL CAREGIVER".
+  - One-tap quick emergency calling for relatives.
+  - Jetpack Glance home screen widget.
+  - **Caregiver PIN Protection:** settings entry secured by a 4-digit PIN code (with a 4-second hold fallback) to prevent accidental misconfiguration by the senior.
 
-- **📱 Режим головного опікуна (Дорослий / Адміністратор):**
-  - Конструктор розкладу: точний час, відносний час після якорів дня, періодичні графіки (кожні 2–4+ дні або кожні N годин) та кнопка швидкого створення одноразових нагадувань (магазин, аптека, лікар тощо).
-  - Фотографування ліків та запис аудіо-повідомлень безпосередньо в додатку.
-  - **🚨 Екстрений зв'язок («Розумний тандем»):** прямий телефонний дзвінок (обхід DND через «Обрані контакти») або дистанційний запуск пошукової сирени на 100% гучності, якщо підопічний не бере слухавку.
-  - **Керування швидким поверненням підопічного:** вибір між плаваючою кнопкою, шторкою сповіщень або комбінацією обох варіантів.
-  - **Розділені налаштування та розклад:** параметри підопічного, звертання та контакт швидкого виклику зосереджені у вкладці «Налаштування», що робить вкладку «Розклад» чистим і зручним календарем дій.
-  - Розумна аптечка: облік залишків препаратів з автоматичним списанням та попередженням про необхідність поповнення.
-  - Відстеження стану телефону підопічного: рівень заряду акумулятора, статус підключення до мережі, точний час останньої активності.
-  - **Підтримка кількох літніх людей (Multi-Elder):** легке перемикання між картками «Мама», «Тато», «Бабуся» в один клік у шапці екрана.
-  - Розумні тривоги: повідомлення надсилається лише тоді, коли дедлайн прийому минув, а телефон підопічного був у мережі.
+- **📱 Primary Caregiver Mode (Adult / Administrator):**
+  - Flexible schedule builder: exact times, relative offsets after daily anchors (breakfast, lunch, dinner, bedtime), periodic intervals (every 2–4+ days or every N hours), and quick one-off task creation (pharmacy, doctor, groceries, etc.).
+  - In-app medication photo capture and custom voice reminder recording.
+  - **🚨 Emergency Tandem:** direct phone call (bypassing DND via "Starred Contacts") or remote search siren activation at 100% volume if the senior is unreachable.
+  - **Elder Quick Return Management:** configurable floating button, notification shade, or both, with adjustable button size.
+  - **Clean Schedule & Settings Separation:** senior profile settings, address forms, and quick-call contacts reside in "Settings", keeping the "Schedule" tab focused on timeline actions.
+  - Smart medicine cabinet: inventory tracking with automatic deduction and replenishment alerts.
+  - Telemetry monitoring: elder battery level, network connectivity status, and exact last active timestamp.
+  - **Multi-Elder Support:** seamless one-tap switching between profiles ("Mom", "Dad", "Grandma") in the top app bar.
+  - Smart alerts: notifications sent only when a deadline expires and the senior's device was recently online.
 
-- **🤝 Режим допоміжного опікуна (Помічник / Сусідка / Медсестра / Сиділка):**
-  - Швидке сполучення за 10 секунд через QR-код від головного опікуна.
-  - Безпечний режим (Safe Read-Only): неможливість пошкодити чи змінити схему лікування лікаря.
-  - Моніторинг виконання прийомів на день.
-  - Можливість відмітити прийом особисто з автоматичним формуванням підпису (наприклад, *«✓ Виконала медсестра (Оксана)»* або *«✓ Перевірила сусідка (Галина)»*).
-  - Кнопка швидкого екстреного зв'язку з головним опікуном.
+- **🤝 Secondary Caregiver Mode (Assistant / Neighbor / Nurse / Caregiver):**
+  - Fast 10-second pairing via QR code from the primary caregiver.
+  - Safe Read-Only Mode: prevents accidental edits to prescribed treatment regimens.
+  - Daily schedule monitoring and intake progress overview.
+  - Manual check-off with automated audit signatures (e.g., *“✓ Completed by nurse (Oksana)”* or *“✓ Checked by neighbor (Halyna)”*).
+  - Quick emergency contact button for reaching the primary caregiver.
 
-- **🇺🇦 Природна українська мова та граматичне узгодження:**
-  - Врахування статі та родинного зв'язку (Мама/Тато, Донька/Син).
-  - Автоматичне узгодження закінчень дієслів («прийняла» / «прийняв», «не виходила» / «не виходив на зв'язок»).
+- **🌍 Bilingual & Grammatical Agreement:**
+  - Full support for **Ukrainian** and **English** with runtime language switching or system default.
+  - Gender and kinship awareness (Mom/Dad, Daughter/Son) with natural grammatical verb inflection.
 
-- **🔒 Надійність та приватність:**
-  - Повна автономність: усі нагадування спрацьовують локально навіть за повної відсутності Інтернету.
-  - Безсерверна архітектура: синхронізація через Google Drive API з наскрізним шифруванням AES-256-GCM.
-  - Конфліктно-вільні логи подій (CRDT Event Log per-device) — відмітки різних опікунів та підопічного ніколи не перезаписують одна одну.
+- **🎨 Accessible Visual Themes:**
+  - Standard Light and Dark themes.
+  - **High Contrast Theme (WCAG AAA compliant):** deep dark surfaces with ultra-vivid yellow, neon lime, and cyan accents for maximum legibility.
 
----
-
-## 🏛️ Архітектура модулів
-
-- `:app` — точка входу, DI, динамічна тема Material 3 із високим контрастом, вибір активної ролі (`ELDER`, `CAREGIVER`), обробка життєвого циклу.
-- `:core:model` — чистий Kotlin/JVM модуль: доменні моделі (`PlanSnapshot`, `TaskSpec`, `AnchorSpec`, `CaregiverRole`, `CaregiverAccessLevel`), розрахунок розкладу (`DailyScheduleResolver`), аптечка (`InventoryCalculator`), оцінка телеметрії (`PresenceEvaluator`), лінгвістичний рушій (`CareCloseWording`).
-- `:core:database` — сховище Room (SQLite): таблиці розкладів, CRDT-подій, черги вихідних пакетів синхронізації (Outbox), кешу медіафайлів та `DeviceConfigStore`.
-- `:core:alarms` — локальні системні нагадування: `AlarmCoordinator`, `AlarmRingingService`, `ElderAlarmAudioPlayer` (обхід режиму «Не турбувати», авто-підняття гучності), `FullScreenAlarmActivity` (картки ліків та екстрена сирена), ресивери після перезавантаження та Predictive Window Polling.
-- `:core:sync` — безсерверний транспортний шар: `GoogleDriveServiceAccountTransport` (RS256 JWT + Google Drive v3 REST API), генератор/парсер QR-кодів, шифрування AES-256-GCM, збір телеметрії пристрою.
-- `:feature:onboarding` — вітальний майстер: вибір ролі (Літня людина, Головний опікун, Помічник), вибір родинного зв'язку та статі, сканування/генерація QR-кодів, покроковий чекліст системних дозволів (DND, оверлеї, батарея, точні будильники).
-- `:feature:elder` — інтерфейс підопічного: адаптований екран, показ завдань, фото ліків, підтвердження прийому, плаваюча серцева кнопка (`ElderFloatingBubbleService`) та віджет Jetpack Glance.
-- `:feature:caregiver` — панель опікуна: мультипрофільний перемикач, дашборд статусу, кнопка екстреного зв'язку та сирени, керування швидким поверненням, конструктор розкладу з камерою та мікрофоном, аптечка, шеринг QR-коду для помічників.
+- **🔒 Reliability & Privacy:**
+  - 100% offline autonomy: all reminders trigger locally without active internet.
+  - Serverless architecture: synchronized via Google Drive API with end-to-end AES-256-GCM encryption.
+  - Conflict-Free Replicated Event Logs (CRDT per-device): caregiver and elder actions never overwrite or lose history.
 
 ---
 
-## 📚 Документація
+## 🏛️ Module Architecture
 
-- [Посібник користувача та повний опис функцій](docs/USER_GUIDE.md)
-- [Покрокове налаштування Google Drive та Service Account](docs/GOOGLE_DRIVE_SETUP.md)
-- [Опис форматів JSON та структур обміну даними](docs/JSON_SCHEMAS.md)
+- `:app` — Entry point, DI, Material 3 dynamic and high-contrast theming, active role selection (`ELDER`, `CAREGIVER`), lifecycle management.
+- `:core:model` — Pure Kotlin/JVM module: domain models (`PlanSnapshot`, `TaskSpec`, `AnchorSpec`, `CaregiverRole`, `CaregiverAccessLevel`), schedule resolution (`DailyScheduleResolver`), medicine cabinet (`InventoryCalculator`), telemetry evaluation (`PresenceEvaluator`), linguistic engine (`CareCloseWording`), and localization (`CareCloseStrings`).
+- `:core:database` — Room (SQLite) storage: schedule tables, CRDT events, outbox sync queue, media cache, and `DeviceConfigStore`.
+- `:core:alarms` — Local system alarms: `AlarmCoordinator`, `AlarmRingingService`, `ElderAlarmAudioPlayer` (DND bypass, auto-volume), `FullScreenAlarmActivity` (medication cards and emergency siren), boot receivers, and Predictive Window Polling.
+- `:core:sync` — Serverless transport layer: `GoogleDriveServiceAccountTransport` (RS256 JWT + Google Drive v3 REST API), QR generator/parser, AES-256-GCM encryption, device telemetry collection.
+- `:feature:onboarding` — Setup wizard: role selection (Senior, Primary Caregiver, Assistant), kinship and gender selection, QR pairing, step-by-step system permission checklist (DND, overlay, battery optimization, exact alarms).
+- `:feature:elder` — Senior interface: adaptive high-contrast screens, task view, medication photos, one-tap confirmations, floating heart bubble (`ElderFloatingBubbleService`), PIN-protected settings, and Jetpack Glance widget.
+- `:feature:caregiver` — Caregiver dashboard: multi-profile switcher, status overview, emergency tandem call and siren triggers, quick return controls, timeline builder with camera and microphone, medicine cabinet, and QR sharing for assistants.
 
 ---
 
-## 🛠️ Системні вимоги та збірка
+## 📚 Documentation
 
-- **Мінімальна версія:** Android 8.0 (API 26 — Oreo)
-- **Цільова версія:** Android 15 (API 35 — Vanilla Ice Cream)
-- **Середовище:** JDK 17+, Android Studio Ladybug+ / Gradle 8.10.2
+- [User Guide & Feature Walkthrough](docs/USER_GUIDE.md)
+- [Google Drive & Service Account Setup](docs/GOOGLE_DRIVE_SETUP.md)
+- [JSON Schemas & Data Exchange Specification](docs/JSON_SCHEMAS.md)
+- [Українська версія README](readme-ua.md)
 
-### Збірка та запуск тестів через Gradle:
+---
+
+## 🛠️ System Requirements & Build
+
+- **Minimum SDK:** Android 8.0 (API 26 — Oreo)
+- **Target SDK:** Android 15 (API 35 — Vanilla Ice Cream)
+- **Environment:** JDK 17+, Android Studio Ladybug+ / Gradle 8.10.2
+
+### Build and Test via Gradle:
 
 ```bash
-# Запуск юніт-тестів усіх модулів:
-./gradlew :core:model:test :core:sync:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:caregiver:testDebugUnitTest
+# Run unit tests across all modules:
+./gradlew :core:model:test :core:sync:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:caregiver:testDebugUnitTest :feature:elder:testDebugUnitTest
 
-# Збірка інсталяційного debug APK:
+# Assemble debug APK:
 ./gradlew :app:assembleDebug
 ```
 
-Зібраний APK-файл знаходиться за шляхом:
+The compiled APK will be located at:
 `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
-## 🚀 Публікація на GitHub
+## 🚀 Repository & Publishing
 
-Для завантаження проєкту у ваш репозиторій на GitHub виконайте:
+To push updates to your GitHub repository:
 
 ```bash
-# Додайте віддалений репозиторій (замініть YOUR_USERNAME та YOUR_REPOSITORY на ваші)
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+# Verify remote configuration
+git remote -v
 
-# Переконайтеся, що гілка main активна
-git branch -M main
-
-# Надішліть код на GitHub
-git push -u origin main
+# Push to main branch
+git push origin main
 ```
