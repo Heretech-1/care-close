@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.careclose.app.ui.theme.CareCloseTheme
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.AppLanguage
 import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val deviceConfigStore = app.deviceConfigStore
             var localThemeMode by remember { mutableStateOf(deviceConfigStore.getThemeMode()) }
+            var localLanguage by remember { mutableStateOf(deviceConfigStore.getAppLanguage()) }
             val activePlan by app.careCloseRepository.observeActivePlan().collectAsState(initial = null)
             val currentRole = deviceConfigStore.getRole()
 
@@ -72,11 +74,17 @@ class MainActivity : ComponentActivity() {
                 else -> localThemeMode
             }
 
-            CareCloseTheme(themeMode = effectiveTheme) {
+            CareCloseTheme(
+                themeMode = effectiveTheme,
+                appLanguage = localLanguage,
+            ) {
                 CareCloseShell(
                     app = app,
                     onThemeChanged = { newTheme ->
                         localThemeMode = newTheme
+                    },
+                    onLanguageChanged = { newLang ->
+                        localLanguage = newLang
                     },
                 )
             }
@@ -112,6 +120,7 @@ class MainActivity : ComponentActivity() {
 private fun CareCloseShell(
     app: CareCloseApplication,
     onThemeChanged: (AppThemeMode) -> Unit = {},
+    onLanguageChanged: (AppLanguage) -> Unit = {},
 ) {
     var activeProfileId by remember { mutableStateOf(app.syncConfigStore.getActiveProfileId()) }
     val repository = remember(activeProfileId) { app.careCloseRepository }
@@ -327,6 +336,7 @@ private fun CareCloseShell(
                         isAddingNewProfile = true
                     },
                     onThemeChanged = onThemeChanged,
+                    onLanguageChanged = onLanguageChanged,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

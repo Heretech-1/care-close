@@ -1,6 +1,7 @@
 package com.careclose.core.database.preferences
 
 import android.content.Context
+import com.careclose.core.model.AppLanguage
 import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CaregiverAccessLevel
 import com.careclose.core.model.CaregiverRole
@@ -23,6 +24,12 @@ interface DeviceConfigStore {
 
     fun getThemeMode(): AppThemeMode
     fun setThemeMode(mode: AppThemeMode)
+
+    fun getAppLanguage(): AppLanguage
+    fun setAppLanguage(lang: AppLanguage)
+
+    fun getCaregiverPin(): String
+    fun setCaregiverPin(pin: String)
 }
 
 class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
@@ -91,6 +98,24 @@ class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
         prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
     }
 
+    override fun getAppLanguage(): AppLanguage {
+        val raw = prefs.getString(KEY_APP_LANGUAGE, null) ?: return AppLanguage.SYSTEM
+        return runCatching { AppLanguage.valueOf(raw) }.getOrDefault(AppLanguage.SYSTEM)
+    }
+
+    override fun setAppLanguage(lang: AppLanguage) {
+        prefs.edit().putString(KEY_APP_LANGUAGE, lang.name).apply()
+    }
+
+    override fun getCaregiverPin(): String {
+        return prefs.getString(KEY_CAREGIVER_PIN, "1234") ?: "1234"
+    }
+
+    override fun setCaregiverPin(pin: String) {
+        val cleanPin = pin.trim().takeIf { it.length == 4 && it.all { ch -> ch.isDigit() } } ?: "1234"
+        prefs.edit().putString(KEY_CAREGIVER_PIN, cleanPin).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "careclose_device_config"
         const val KEY_DEVICE_ID = "device_id"
@@ -99,6 +124,8 @@ class SharedPrefsDeviceConfigStore(context: Context) : DeviceConfigStore {
         const val KEY_CAREGIVER_ROLE = "caregiver_role"
         const val KEY_CAREGIVER_NAME = "caregiver_name"
         const val KEY_THEME_MODE = "app_theme_mode"
+        const val KEY_APP_LANGUAGE = "app_language"
+        const val KEY_CAREGIVER_PIN = "caregiver_pin"
     }
 }
 

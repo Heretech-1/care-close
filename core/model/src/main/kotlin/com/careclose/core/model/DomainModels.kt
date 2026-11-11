@@ -176,6 +176,27 @@ data class TaskRule(
 }
 
 @Serializable
+enum class AppLanguage {
+    SYSTEM,
+    UKRAINIAN,
+    ENGLISH;
+
+    val title: String
+        get() = when (this) {
+            SYSTEM -> "Системна / System"
+            UKRAINIAN -> "Українська"
+            ENGLISH -> "English"
+        }
+
+    val localeTag: String
+        get() = when (this) {
+            SYSTEM -> ""
+            UKRAINIAN -> "uk"
+            ENGLISH -> "en"
+        }
+}
+
+@Serializable
 enum class AppThemeMode {
     SYSTEM,
     LIGHT,

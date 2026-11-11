@@ -12,10 +12,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.careclose.core.model.AppLanguage
 import com.careclose.core.model.AppThemeMode
 
 val LocalIsHighContrast = staticCompositionLocalOf { false }
 val LocalAppThemeMode = staticCompositionLocalOf { AppThemeMode.SYSTEM }
+val LocalAppLanguage = staticCompositionLocalOf { AppLanguage.SYSTEM }
 
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF1B5E20),
@@ -62,25 +64,26 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val HighContrastColorScheme = darkColorScheme(
-    primary = Color(0xFF00E676),
-    onPrimary = Color.Black,
-    primaryContainer = Color(0xFF003314),
-    onPrimaryContainer = Color(0xFF69F0AE),
-    secondary = Color(0xFF40C4FF),
-    onSecondary = Color.Black,
-    secondaryContainer = Color(0xFF00364A),
+    primary = Color(0xFFFFEA00), // Pure Bright Yellow
+    onPrimary = Color(0xFF000000), // Pure Black text on bright yellow
+    primaryContainer = Color(0xFF00E676), // Bright neon lime
+    onPrimaryContainer = Color(0xFF000000),
+    secondary = Color(0xFF00E5FF), // Vivid Electric Cyan
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFF002838),
     onSecondaryContainer = Color(0xFF80D8FF),
-    error = Color(0xFFFF1744),
-    onError = Color.White,
-    errorContainer = Color(0xFF5A0009),
-    onErrorContainer = Color(0xFFFF8A80),
-    background = Color(0xFF000000),
-    onBackground = Color(0xFFFFFFFF),
-    surface = Color(0xFF0D0D0D),
-    onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF1F1F1F),
+    error = Color(0xFFFF1744), // Vivid Coral Red
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFF6B0000),
+    onErrorContainer = Color(0xFFFFD5D5),
+    background = Color(0xFF000000), // Pure Black
+    onBackground = Color(0xFFFFFFFF), // Pure White
+    surface = Color(0xFF000000), // Black card background
+    onSurface = Color(0xFFFFFFFF), // Pure White
+    surfaceVariant = Color(0xFF141414), // Dark charcoal for contrast
     onSurfaceVariant = Color(0xFFFFFFFF),
-    outline = Color(0xFFFFFFFF),
+    outline = Color(0xFFFFFFFF), // Crisp 100% white borders
+    outlineVariant = Color(0xFFFFEA00), // Bright yellow accent borders
 )
 
 private val CareCloseTypography = Typography(
@@ -104,6 +107,7 @@ private val CareCloseTypography = Typography(
 @Composable
 fun CareCloseTheme(
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    appLanguage: AppLanguage = AppLanguage.SYSTEM,
     content: @Composable () -> Unit,
 ) {
     val isSystemDark = isSystemInDarkTheme()
@@ -118,6 +122,7 @@ fun CareCloseTheme(
     CompositionLocalProvider(
         LocalIsHighContrast provides isHighContrast,
         LocalAppThemeMode provides themeMode,
+        LocalAppLanguage provides appLanguage,
     ) {
         MaterialTheme(
             colorScheme = colors,

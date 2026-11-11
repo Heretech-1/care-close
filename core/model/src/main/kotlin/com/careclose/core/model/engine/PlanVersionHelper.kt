@@ -1,5 +1,7 @@
 package com.careclose.core.model.engine
 
+import com.careclose.core.model.AppLanguage
+
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -69,6 +71,7 @@ object PlanVersionHelper {
         effectiveFromUtc: String? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
         now: Instant = Instant.now(),
+        language: AppLanguage = AppLanguage.UKRAINIAN,
     ): String {
         val dt = parseVersionDateTimeOrNull(planVersion)
             ?: runCatching {
@@ -81,20 +84,22 @@ object PlanVersionHelper {
             return "v$planVersion"
         }
 
-        val today = LocalDate.now(zoneId)
+        val today = now.atZone(zoneId).toLocalDate()
         val planDate = dt.toLocalDate()
         val timeStr = String.format(Locale.US, "%02d:%02d", dt.hour, dt.minute)
+        val isEn = language == AppLanguage.ENGLISH
+        val locale = if (isEn) Locale.US else ukLocale
 
         return when {
-            planDate == today -> "сьогодні о $timeStr"
-            planDate == today.minusDays(1) -> "вчора о $timeStr"
+            planDate == today -> if (isEn) "today at $timeStr" else "сьогодні о $timeStr"
+            planDate == today.minusDays(1) -> if (isEn) "yesterday at $timeStr" else "вчора о $timeStr"
             planDate.year == today.year -> {
-                val monthName = dt.format(DateTimeFormatter.ofPattern("d MMM", ukLocale))
-                "$monthName о $timeStr"
+                val monthName = dt.format(DateTimeFormatter.ofPattern("d MMM", locale))
+                if (isEn) "$monthName at $timeStr" else "$monthName о $timeStr"
             }
             else -> {
-                val fullDate = dt.format(DateTimeFormatter.ofPattern("d MMM yyyy", ukLocale))
-                "$fullDate о $timeStr"
+                val fullDate = dt.format(DateTimeFormatter.ofPattern("d MMM yyyy", locale))
+                if (isEn) "$fullDate at $timeStr" else "$fullDate о $timeStr"
             }
         }
     }

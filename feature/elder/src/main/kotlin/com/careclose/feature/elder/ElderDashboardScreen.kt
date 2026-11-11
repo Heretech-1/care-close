@@ -23,10 +23,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,6 +38,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,7 +61,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -65,10 +73,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.careclose.core.alarms.AlarmPermissionChecker
 import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
+import com.careclose.core.model.AppLanguage
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
 import com.careclose.core.model.Gender
 import com.careclose.core.model.Role
+import com.careclose.core.model.engine.CareCloseStrings
 import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.ResolvedDailyAnchor
@@ -165,20 +175,26 @@ fun ElderDashboardScreen(
         }
     }
 
-    val ukLocale = remember { Locale.forLanguageTag("uk-UA") }
+    val appLanguage = remember { deviceConfigStore.getAppLanguage() }
+    val effectiveLocale = remember(appLanguage) { CareCloseStrings.getLocale(appLanguage) }
+
     val clockFormatter = remember(planZone) { DateTimeFormatter.ofPattern("HH:mm").withZone(planZone) }
-    val dateFormatter = remember(planZone, ukLocale) {
-        DateTimeFormatter.ofPattern("EEEE, d MMMM", ukLocale).withZone(planZone)
+    val dateFormatter = remember(planZone, effectiveLocale) {
+        DateTimeFormatter.ofPattern("EEEE, d MMMM", effectiveLocale).withZone(planZone)
     }
-    val dayPeriod = remember(currentInstant, planZone) {
+    val dayPeriod = remember(currentInstant, planZone, appLanguage) {
         val hour = ZonedDateTime.ofInstant(currentInstant, planZone).hour
         when (hour) {
-            in 5..11 -> "Ранок"
-            in 12..17 -> "День"
-            in 18..22 -> "Вечір"
-            else -> "Ніч"
+            in 5..11 -> CareCloseStrings.periodMorning(appLanguage)
+            in 12..17 -> CareCloseStrings.periodAfternoon(appLanguage)
+            in 18..22 -> CareCloseStrings.periodEvening(appLanguage)
+            else -> CareCloseStrings.periodNight(appLanguage)
         }
     }
+
+    var showPinDialog by remember { mutableStateOf(false) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -217,10 +233,13 @@ fun ElderDashboardScreen(
                                 context.startActivity(dialIntent)
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                        ),
                         shape = RoundedCornerShape(24.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
-                        modifier = Modifier.height(56.dp),
+                        modifier = Modifier.defaultMinSize(minHeight = 56.dp),
                     ) {
                         Icon(imageVector = Icons.Rounded.Call, contentDescription = null, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -228,6 +247,8 @@ fun ElderDashboardScreen(
                             text = contact.name,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -238,7 +259,8 @@ fun ElderDashboardScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                 ) {
                     Row(
                         modifier = Modifier
@@ -249,22 +271,30 @@ fun ElderDashboardScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Warning,
                                 contentDescription = null,
-                                tint = Color(0xFFE65100),
+                                tint = MaterialTheme.colorScheme.error,
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Потрібно увімкнути дозволи для будильників",
+                                text = CareCloseStrings.elderAlarmsPermissionNeeded(appLanguage),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
                             )
                         }
-                        TextButton(onClick = onOpenPermissionsSetup) {
-                            Text("Увімкнути", fontWeight = FontWeight.Bold)
+                        Button(
+                            onClick = onOpenPermissionsSetup,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Text(CareCloseStrings.elderEnable(appLanguage), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -275,7 +305,8 @@ fun ElderDashboardScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFC8E6C9)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                 ) {
                     Row(
                         modifier = Modifier
@@ -286,16 +317,18 @@ fun ElderDashboardScreen(
                     ) {
                         val prefix = activePlan?.let { p ->
                             CareCloseWording.elderRecordedConfirmation(
-                                CareCloseWording.recipientDisplayName(p),
+                                CareCloseWording.recipientDisplayName(p, appLanguage),
                                 p.recipientRole.gender,
                                 undoTarget.taskType,
+                                appLanguage,
                             )
-                        } ?: "Записано"
+                        } ?: if (appLanguage == AppLanguage.ENGLISH) "Recorded" else "Записано"
                         Text(
                             text = "$prefix: ${undoTarget.title}",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
                         )
                         OutlinedButton(
                             onClick = {
@@ -319,8 +352,15 @@ fun ElderDashboardScreen(
                                     ElderGlanceWidget.requestUpdate(context)
                                 }
                             },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
                         ) {
-                            Text("Скасувати", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                CareCloseStrings.elderUndo(appLanguage),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                 }
@@ -336,6 +376,7 @@ fun ElderDashboardScreen(
                         repository = repository,
                         timeFormatter = clockFormatter,
                         recipientGender = activePlan?.recipientRole?.gender ?: Gender.UNSPECIFIED,
+                        appLanguage = appLanguage,
                         onMarkTaken = {
                             val eventId = UUID.randomUUID().toString()
                             scope.launch {
@@ -383,7 +424,7 @@ fun ElderDashboardScreen(
                         },
                     )
                 } else {
-                    AllDoneCard()
+                    AllDoneCard(appLanguage = appLanguage)
                 }
             }
 
@@ -391,15 +432,16 @@ fun ElderDashboardScreen(
             if (pendingAnchors.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Відмітьте, коли почнете:",
+                        text = CareCloseStrings.elderMarkWhenStart(appLanguage),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF111418),
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
                 items(pendingAnchors, key = { it.anchor.id }) { anchorItem ->
                     AnchorActionCard(
                         anchor = anchorItem,
+                        appLanguage = appLanguage,
                         onConfirm = {
                             scope.launch {
                                 repository.recordLocalEvent(
@@ -430,7 +472,7 @@ fun ElderDashboardScreen(
             if (upcomingTasks.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Ще заплановано на сьогодні",
+                        text = CareCloseStrings.elderUpcomingToday(appLanguage),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -445,7 +487,7 @@ fun ElderDashboardScreen(
             if (completedToday.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Вже зроблено сьогодні",
+                        text = CareCloseStrings.elderCompletedToday(appLanguage),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -458,27 +500,141 @@ fun ElderDashboardScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
+            Spacer(modifier = Modifier.height(12.dp))
+            var holdStartTime by remember { mutableStateOf(0L) }
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .pointerInput(Unit) {
                         detectTapGestures(
-                            onLongPress = { onOpenServiceSettings() },
+                            onTap = {
+                                pinInput = ""
+                                pinError = false
+                                showPinDialog = true
+                            },
+                            onLongPress = {
+                                // Fallback emergency long press: direct open if held 4+ seconds
+                                onOpenServiceSettings()
+                            },
                         )
                     }
-                    .padding(vertical = 18.dp),
-                contentAlignment = Alignment.Center,
+                    .padding(vertical = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
             ) {
-                Text(
-                    text = "Сервісні налаштування (утримуйте для входу)",
-                    fontSize = 14.sp,
-                    color = Color(0xFF757575),
-                    textAlign = TextAlign.Center,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = CareCloseStrings.elderServiceSettingsProtected(appLanguage),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showPinDialog) {
+        val expectedPin = remember { deviceConfigStore.getCaregiverPin() }
+        AlertDialog(
+            onDismissRequest = {
+                showPinDialog = false
+                pinInput = ""
+                pinError = false
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (appLanguage == AppLanguage.ENGLISH) "Caregiver Entrance" else "Вхід для опікуна",
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = CareCloseStrings.elderEnterCaregiverPin(appLanguage),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = {
+                            if (it.length <= 4 && it.all { ch -> ch.isDigit() }) {
+                                pinInput = it
+                                pinError = false
+                                if (it == expectedPin) {
+                                    showPinDialog = false
+                                    onOpenServiceSettings()
+                                }
+                            }
+                        },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        isError = pinError,
+                        label = { Text("PIN (4 цифри)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    if (pinError) {
+                        Text(
+                            text = CareCloseStrings.elderPinIncorrect(appLanguage),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        text = CareCloseStrings.elderHoldToUnlock(appLanguage),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (pinInput == expectedPin) {
+                            showPinDialog = false
+                            onOpenServiceSettings()
+                        } else {
+                            pinError = true
+                        }
+                    },
+                ) {
+                    Text(CareCloseStrings.elderConfirm(appLanguage))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPinDialog = false
+                        pinInput = ""
+                        pinError = false
+                    },
+                ) {
+                    Text(CareCloseStrings.elderCancel(appLanguage))
+                }
+            },
+        )
     }
 }
 
@@ -488,6 +644,7 @@ private fun FocusTaskCard(
     repository: CareCloseRepository,
     timeFormatter: DateTimeFormatter,
     recipientGender: Gender = Gender.UNSPECIFIED,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onMarkTaken: () -> Unit,
     onSnooze: () -> Unit,
 ) {
@@ -510,9 +667,9 @@ private fun FocusTaskCard(
             containerColor = if (isUrgent) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
         ),
         border = if (isUrgent) {
-            BorderStroke(2.5.dp, MaterialTheme.colorScheme.error)
+            BorderStroke(3.dp, MaterialTheme.colorScheme.error)
         } else {
-            BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
         },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
@@ -523,12 +680,12 @@ private fun FocusTaskCard(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val badgeText = when {
-                item.isMissingAnchor -> "ПОТРІБНЕ НАЛАШТУВАННЯ"
-                isUrgent -> "ЗАРАЗ ПОТРІБНО"
+                item.isMissingAnchor -> if (appLanguage == AppLanguage.ENGLISH) "SETUP REQUIRED" else "ПОТРІБНЕ НАЛАШТУВАННЯ"
+                isUrgent -> if (appLanguage == AppLanguage.ENGLISH) "ACTION NEEDED NOW" else "ЗАРАЗ ПОТРІБНО"
                 item.status == ResolvedTaskStatus.SNOOZED && item.snoozedUntil != null ->
-                    "ВІДКЛАДЕНО ДО ${timeFormatter.format(item.snoozedUntil)}"
-                item.scheduledAt != null -> "ЗАПЛАНОВАНО НА ${timeFormatter.format(item.scheduledAt)}"
-                else -> "ПІСЛЯ ПОДІЇ: ${item.anchorTitle?.uppercase() ?: "ЇЖІ"}"
+                    if (appLanguage == AppLanguage.ENGLISH) "SNOOZED UNTIL ${timeFormatter.format(item.snoozedUntil)}" else "ВІДКЛАДЕНО ДО ${timeFormatter.format(item.snoozedUntil)}"
+                item.scheduledAt != null -> if (appLanguage == AppLanguage.ENGLISH) "SCHEDULED FOR ${timeFormatter.format(item.scheduledAt)}" else "ЗАПЛАНОВАНО НА ${timeFormatter.format(item.scheduledAt)}"
+                else -> if (appLanguage == AppLanguage.ENGLISH) "AFTER EVENT: ${item.anchorTitle?.uppercase() ?: "MEAL"}" else "ПІСЛЯ ПОДІЇ: ${item.anchorTitle?.uppercase() ?: "ЇЖІ"}"
             }
 
             Surface(
@@ -581,6 +738,7 @@ private fun FocusTaskCard(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
 
@@ -597,9 +755,10 @@ private fun FocusTaskCard(
             if (item.isMissingAnchor) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Зверніться до опікуна для оновлення розкладу цієї справи",
+                    text = CareCloseStrings.elderContactCaregiver(appLanguage),
                     fontSize = 18.sp,
-                    color = Color(0xFFB71C1C),
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
             } else if (item.status != ResolvedTaskStatus.WAITING_FOR_ANCHOR) {
@@ -608,9 +767,12 @@ private fun FocusTaskCard(
                     onClick = onMarkTaken,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(78.dp),
+                        .defaultMinSize(minHeight = 76.dp),
                     shape = RoundedCornerShape(22.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
                 ) {
                     Icon(
@@ -620,10 +782,11 @@ private fun FocusTaskCard(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = CareCloseWording.elderActionTakenButton(recipientGender, item.task.type),
+                        text = CareCloseWording.elderActionTakenButton(recipientGender, item.task.type, appLanguage),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
+                        textAlign = TextAlign.Center,
                     )
                 }
 
@@ -633,15 +796,16 @@ private fun FocusTaskCard(
                         onClick = onSnooze,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(58.dp),
+                            .defaultMinSize(minHeight = 56.dp),
                         shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(2.dp, Color(0xFF78909C)),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
                     ) {
                         Text(
-                            text = "НАГАДАТИ ЧЕРЕЗ 10 ХВ",
+                            text = CareCloseStrings.elderRemind10Min(appLanguage),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF263238),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
                         )
                     }
                 }
@@ -653,12 +817,14 @@ private fun FocusTaskCard(
 @Composable
 private fun AnchorActionCard(
     anchor: ResolvedDailyAnchor,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onConfirm: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
@@ -673,26 +839,30 @@ private fun AnchorActionCard(
                     text = anchor.anchor.title,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0D47A1),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Натисніть, коли почнете подію",
+                    text = if (appLanguage == AppLanguage.ENGLISH) "Tap when you begin this event" else "Натисніть, коли почнете подію",
                     fontSize = 15.sp,
-                    color = Color(0xFF1565C0),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 )
             }
             Button(
                 onClick = onConfirm,
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                modifier = Modifier.height(52.dp),
+                modifier = Modifier.defaultMinSize(minHeight = 52.dp),
             ) {
                 Text(
-                    text = "ПОЧИНАЮ",
-                    fontSize = 17.sp,
+                    text = CareCloseStrings.elderIStarted(appLanguage),
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -707,7 +877,8 @@ private fun CompletedTaskRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
@@ -722,7 +893,7 @@ private fun CompletedTaskRow(
                 modifier = Modifier.weight(1f).padding(end = 8.dp),
             ) {
                 Surface(
-                    color = Color(0xFF2E7D32),
+                    color = MaterialTheme.colorScheme.primary,
                     shape = CircleShape,
                     modifier = Modifier.size(26.dp),
                 ) {
@@ -730,7 +901,7 @@ private fun CompletedTaskRow(
                         Icon(
                             imageVector = Icons.Rounded.Check,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(16.dp),
                         )
                     }
@@ -740,19 +911,19 @@ private fun CompletedTaskRow(
                     text = item.task.title,
                     fontSize = 19.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0A2E0D),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
             item.completedAt?.let { doneAt ->
                 Surface(
-                    color = Color(0xFFC8E6C9),
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(10.dp),
                 ) {
                     Text(
-                        text = "о ${timeFormatter.format(doneAt)}",
+                        text = timeFormatter.format(doneAt),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1B5E20),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
@@ -824,11 +995,12 @@ private fun UpcomingTaskRow(
 }
 
 @Composable
-private fun AllDoneCard() {
+private fun AllDoneCard(appLanguage: AppLanguage = AppLanguage.UKRAINIAN) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
@@ -838,17 +1010,18 @@ private fun AllDoneCard() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Усі справи на сьогодні виконано ✨",
+                text = CareCloseStrings.elderAllDone(appLanguage),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1B5E20),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Можна спокійно відпочивати",
+                text = CareCloseStrings.elderAllDoneSub(appLanguage),
                 fontSize = 18.sp,
-                color = Color(0xFF2E7D32),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                textAlign = TextAlign.Center,
             )
         }
     }

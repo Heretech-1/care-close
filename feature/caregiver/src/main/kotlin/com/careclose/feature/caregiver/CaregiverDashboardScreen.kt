@@ -68,6 +68,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -84,12 +86,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.careclose.core.database.entity.MediaCacheEntity
 import com.careclose.core.database.preferences.DeviceConfigStore
 import com.careclose.core.database.repository.CareCloseRepository
 import com.careclose.core.model.AnchorRule
+import com.careclose.core.model.AppLanguage
 import com.careclose.core.model.AppThemeMode
 import com.careclose.core.model.CareEvent
 import com.careclose.core.model.CareEventType
@@ -105,6 +109,7 @@ import com.careclose.core.model.RecipientRole
 import com.careclose.core.model.Role
 import com.careclose.core.model.ScheduleRule
 import com.careclose.core.model.TaskRule
+import com.careclose.core.model.engine.CareCloseStrings
 import com.careclose.core.model.engine.CareCloseWording
 import com.careclose.core.model.engine.DailyScheduleResolver
 import com.careclose.core.model.engine.InventoryCalculator
@@ -151,6 +156,7 @@ fun CaregiverDashboardScreen(
     onSwitchProfile: (String) -> Unit = {},
     onAddNewElderProfile: () -> Unit = {},
     onThemeChanged: (AppThemeMode) -> Unit = {},
+    onLanguageChanged: (AppLanguage) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -160,6 +166,7 @@ fun CaregiverDashboardScreen(
     val accessLevel = remember { deviceConfigStore.getCaregiverAccessLevel() }
     val myCaregiverName = remember { deviceConfigStore.getCaregiverName() }
     var localThemeMode by remember { mutableStateOf(deviceConfigStore.getThemeMode()) }
+    var localLanguage by remember { mutableStateOf(deviceConfigStore.getAppLanguage()) }
 
     val allProfiles = remember(syncConfigStore) { syncConfigStore.getAllProfiles() }
     val currentProfile = remember(syncConfigStore, allProfiles) { syncConfigStore.getPairingPayload() }
@@ -400,25 +407,25 @@ fun CaregiverDashboardScreen(
                     selected = activeTab == CaregiverTab.TODAY,
                     onClick = { activeTab = CaregiverTab.TODAY },
                     icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
-                    label = { Text(CaregiverTab.TODAY.title) },
+                    label = { Text(CareCloseStrings.tabToday(localLanguage)) },
                 )
                 NavigationBarItem(
                     selected = activeTab == CaregiverTab.SCHEDULE,
                     onClick = { activeTab = CaregiverTab.SCHEDULE },
                     icon = { Icon(Icons.Rounded.DateRange, contentDescription = null) },
-                    label = { Text(CaregiverTab.SCHEDULE.title) },
+                    label = { Text(CareCloseStrings.tabSchedule(localLanguage)) },
                 )
                 NavigationBarItem(
                     selected = activeTab == CaregiverTab.INVENTORY,
                     onClick = { activeTab = CaregiverTab.INVENTORY },
                     icon = { Icon(Icons.Rounded.ShoppingCart, contentDescription = null) },
-                    label = { Text(CaregiverTab.INVENTORY.title) },
+                    label = { Text(CareCloseStrings.tabInventory(localLanguage)) },
                 )
                 NavigationBarItem(
                     selected = activeTab == CaregiverTab.SETTINGS,
                     onClick = { activeTab = CaregiverTab.SETTINGS },
                     icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
-                    label = { Text(CaregiverTab.SETTINGS.title) },
+                    label = { Text(CareCloseStrings.tabSettings(localLanguage)) },
                 )
             }
         },
@@ -506,6 +513,7 @@ fun CaregiverDashboardScreen(
                         presenceHealth = presenceHealth,
                         lowStockItems = lowStockItems,
                         activeCaregiverRole = myCaregiverRole,
+                        appLanguage = localLanguage,
                         onSelectDate = { selectedDate = it },
                         onPrevWeek = { selectedDate = selectedDate.minusWeeks(1) },
                         onNextWeek = { selectedDate = selectedDate.plusWeeks(1) },
@@ -523,7 +531,7 @@ fun CaregiverDashboardScreen(
                                         taskId = task.task.id,
                                         type = CareEventType.CAREGIVER_OVERRIDE_TAKEN,
                                         occurredAtUtc = Instant.now().toString(),
-                                        note = CareCloseWording.caregiverOverrideNote(myCaregiverRole, myCaregiverName, task.task.type),
+                                        note = CareCloseWording.caregiverOverrideNote(myCaregiverRole, myCaregiverName, task.task.type, localLanguage),
                                     ),
                                 )
                                 currentInstant = Instant.now()
@@ -557,6 +565,7 @@ fun CaregiverDashboardScreen(
                     ScheduleEditorContent(
                         plan = plan,
                         isReadOnly = (accessLevel == CaregiverAccessLevel.HELPER),
+                        appLanguage = localLanguage,
                         onAddTask = {
                             editingTask = null
                             showTaskDialog = true
@@ -636,6 +645,8 @@ fun CaregiverDashboardScreen(
                         currentButtonSize = plan.floatingButtonSize,
                         currentElderTheme = plan.elderThemeMode,
                         localThemeMode = localThemeMode,
+                        localLanguage = localLanguage,
+                        currentPin = deviceConfigStore.getCaregiverPin(),
                         accessLevel = accessLevel,
                         onOpenOnboarding = onOpenOnboardingSettings,
                         onOpenShareHelperDialog = { showShareHelperDialog = true },
@@ -704,6 +715,15 @@ fun CaregiverDashboardScreen(
                             deviceConfigStore.setThemeMode(newTheme)
                             localThemeMode = newTheme
                             onThemeChanged(newTheme)
+                        },
+                        onUpdateLanguage = { newLang ->
+                            deviceConfigStore.setAppLanguage(newLang)
+                            localLanguage = newLang
+                            onLanguageChanged(newLang)
+                        },
+                        onUpdateCaregiverPin = { newPin ->
+                            deviceConfigStore.setCaregiverPin(newPin)
+                            statusBanner = if (localLanguage == AppLanguage.ENGLISH) "PIN updated" else "PIN-код захисту оновлено"
                         },
                         onPublishCurrentPlan = {
                             scope.launch {
@@ -927,6 +947,7 @@ private fun TodayDashboardContent(
     presenceHealth: PresenceHealth,
     lowStockItems: List<InventoryStatus> = emptyList(),
     activeCaregiverRole: CaregiverRole = plan.caregiverRole,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onSelectDate: (LocalDate) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
@@ -951,6 +972,7 @@ private fun TodayDashboardContent(
             item {
                 LowStockAlertCard(
                     lowStockItems = lowStockItems,
+                    appLanguage = appLanguage,
                     onNavigateToInventory = onNavigateToInventory,
                 )
             }
@@ -959,6 +981,7 @@ private fun TodayDashboardContent(
         item {
             WeekDateStrip(
                 selectedDate = selectedDate,
+                appLanguage = appLanguage,
                 onSelectDate = onSelectDate,
                 onPrevWeek = onPrevWeek,
                 onNextWeek = onNextWeek,
@@ -980,7 +1003,7 @@ private fun TodayDashboardContent(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "На цей день немає запланованих справ",
+                            text = CareCloseStrings.noTasksScheduled(appLanguage),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1000,6 +1023,7 @@ private fun TodayDashboardContent(
                         item = item,
                         timeFormatter = timeFormatter,
                         activeCaregiverRole = activeCaregiverRole,
+                        appLanguage = appLanguage,
                         onOverrideTaken = { onOverrideTaken(item) },
                         onUndoCompleted = { onUndoCompleted(item) },
                     )
@@ -1014,13 +1038,14 @@ private fun TodayDashboardContent(
 @Composable
 private fun LowStockAlertCard(
     lowStockItems: List<InventoryStatus>,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onNavigateToInventory: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
-        border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
     ) {
         Row(
             modifier = Modifier
@@ -1032,27 +1057,28 @@ private fun LowStockAlertCard(
             Text("💊", fontSize = 24.sp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Закінчуються ліки (${lowStockItems.size})",
+                    text = CareCloseStrings.lowStockWarning(appLanguage, lowStockItems.size),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFE65100),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
                 )
+                val dayUnit = if (appLanguage == AppLanguage.ENGLISH) "d." else "дн."
                 val summary = lowStockItems.joinToString(", ") { status ->
-                    val days = status.estimatedDaysRemaining?.let { " ($it дн.)" } ?: ""
+                    val days = status.estimatedDaysRemaining?.let { " ($it $dayUnit)" } ?: ""
                     "${status.title}$days"
                 }
                 Text(
                     text = summary,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF5D4037),
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
                     maxLines = 2,
                 )
             }
             TextButton(
                 onClick = onNavigateToInventory,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE65100)),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
-                Text("Аптечка →", fontWeight = FontWeight.Bold)
+                Text(CareCloseStrings.toMedicineKit(appLanguage), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1061,6 +1087,7 @@ private fun LowStockAlertCard(
 @Composable
 private fun WeekDateStrip(
     selectedDate: LocalDate,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onSelectDate: (LocalDate) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
@@ -1071,15 +1098,21 @@ private fun WeekDateStrip(
     }
     val today = remember { LocalDate.now() }
 
-    val monthFormatter = remember {
-        DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale("uk", "UA"))
+    val locale = remember(appLanguage) { CareCloseStrings.getLocale(appLanguage) }
+
+    val monthFormatter = remember(locale) {
+        DateTimeFormatter.ofPattern("LLLL yyyy", locale)
     }
-    val monthTitle = remember(selectedDate) {
+    val monthTitle = remember(selectedDate, locale) {
         val raw = monthFormatter.format(selectedDate)
-        raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("uk", "UA")) else it.toString() }
+        raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
     }
 
-    val dayNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
+    val dayNames = if (appLanguage == AppLanguage.ENGLISH) {
+        listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    } else {
+        listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1115,7 +1148,7 @@ private fun WeekDateStrip(
                             onClick = onToday,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                         ) {
-                            Text("Сьогодні", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text(CareCloseStrings.todayButton(appLanguage), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -1359,28 +1392,30 @@ private fun CaregiverTimelineTaskCard(
     item: ResolvedDailyTask,
     timeFormatter: DateTimeFormatter,
     activeCaregiverRole: CaregiverRole = plan.caregiverRole,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onOverrideTaken: () -> Unit,
     onUndoCompleted: () -> Unit,
 ) {
     val isMissingAnchor = item.isMissingAnchor
     val containerColor = when {
-        isMissingAnchor -> Color(0xFFFFEBEE)
-        item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFFF1F8E9)
-        item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFEBEE)
-        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFF3E0)
+        isMissingAnchor -> MaterialTheme.colorScheme.errorContainer
+        item.status == ResolvedTaskStatus.COMPLETED -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        item.status == ResolvedTaskStatus.MISSED_ONLINE -> MaterialTheme.colorScheme.errorContainer
+        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> MaterialTheme.colorScheme.surfaceVariant
         else -> MaterialTheme.colorScheme.surface
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             val timeStr = when {
-                isMissingAnchor -> "⚠️ Якір відсутній"
+                isMissingAnchor -> if (appLanguage == AppLanguage.ENGLISH) "⚠️ Anchor missing" else "⚠️ Якір відсутній"
                 item.scheduledAt != null -> timeFormatter.format(item.scheduledAt)
-                else -> "Після: ${item.anchorTitle ?: "події"}"
+                else -> if (appLanguage == AppLanguage.ENGLISH) "After: ${item.anchorTitle ?: "event"}" else "Після: ${item.anchorTitle ?: "події"}"
             }
 
             Row(
@@ -1392,27 +1427,37 @@ private fun CaregiverTimelineTaskCard(
                     text = "$timeStr · ${item.task.title}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
                 )
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = when {
-                        isMissingAnchor -> Color(0xFFFFCDD2)
-                        item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFFC8E6C9)
-                        item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFFFCDD2)
-                        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFFFE0B2)
+                        isMissingAnchor -> MaterialTheme.colorScheme.error
+                        item.status == ResolvedTaskStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+                        item.status == ResolvedTaskStatus.MISSED_ONLINE -> MaterialTheme.colorScheme.error
+                        item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> MaterialTheme.colorScheme.error
                         else -> MaterialTheme.colorScheme.surfaceVariant
                     },
                 ) {
+                    val label = when (item.status) {
+                        ResolvedTaskStatus.COMPLETED -> if (appLanguage == AppLanguage.ENGLISH) "Completed" else "Виконано"
+                        ResolvedTaskStatus.MISSED_ONLINE -> if (appLanguage == AppLanguage.ENGLISH) "Missed" else "Пропущено"
+                        ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> if (appLanguage == AppLanguage.ENGLISH) "Device offline" else "Пристрій офлайн"
+                        ResolvedTaskStatus.DUE_NOW -> if (appLanguage == AppLanguage.ENGLISH) "Due now" else "Час приймати"
+                        ResolvedTaskStatus.SNOOZED -> if (appLanguage == AppLanguage.ENGLISH) "Snoozed" else "Відкладено"
+                        ResolvedTaskStatus.WAITING_FOR_ANCHOR -> if (appLanguage == AppLanguage.ENGLISH) "Waiting for anchor" else "Очікує якоря"
+                        ResolvedTaskStatus.SKIPPED -> if (appLanguage == AppLanguage.ENGLISH) "Skipped" else "Пропущено"
+                        ResolvedTaskStatus.PENDING -> if (appLanguage == AppLanguage.ENGLISH) "Pending" else "Заплановано"
+                    }
                     Text(
-                        text = statusLabelUk(item),
+                        text = if (isMissingAnchor) (if (appLanguage == AppLanguage.ENGLISH) "Error" else "Помилка") else label,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = when {
-                            isMissingAnchor -> Color(0xFFB71C1C)
-                            item.status == ResolvedTaskStatus.COMPLETED -> Color(0xFF1B5E20)
-                            item.status == ResolvedTaskStatus.MISSED_ONLINE -> Color(0xFFB71C1C)
-                            item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> Color(0xFFE65100)
+                            isMissingAnchor || item.status == ResolvedTaskStatus.COMPLETED ||
+                                item.status == ResolvedTaskStatus.MISSED_ONLINE ||
+                                item.status == ResolvedTaskStatus.MISSED_DEVICE_OFFLINE -> MaterialTheme.colorScheme.onPrimary
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -1422,15 +1467,18 @@ private fun CaregiverTimelineTaskCard(
 
             item.task.doseLabel?.let {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF555555))
+                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (isMissingAnchor) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "⚠️ Помилка: якір прив'язки видалено з розкладу! Перейдіть у вкладку «Розклад», щоб призначити новий якір або точний час.",
+                    text = if (appLanguage == AppLanguage.ENGLISH)
+                        "⚠️ Error: linked anchor was removed! Go to Schedule to reassign an anchor or fixed time."
+                    else
+                        "⚠️ Помилка: якір прив'язки видалено з розкладу! Перейдіть у вкладку «Розклад», щоб призначити новий якір або точний час.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFB71C1C),
+                    color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -1440,9 +1488,10 @@ private fun CaregiverTimelineTaskCard(
                 val completionBadge = CareCloseWording.completedTaskBadge(
                     completedBy = item.completedBy,
                     completionNote = item.completionNote,
-                    recipientName = CareCloseWording.recipientDisplayName(plan),
+                    recipientName = CareCloseWording.recipientDisplayName(plan, appLanguage),
                     gender = plan.recipientRole.gender,
                     taskType = item.task.type,
+                    language = appLanguage,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1453,25 +1502,31 @@ private fun CaregiverTimelineTaskCard(
                         text = completionBadge,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1B5E20),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = onUndoCompleted) {
-                        Text("Скасувати", color = Color(0xFF555555))
+                        Text(CareCloseStrings.elderUndo(appLanguage), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
                 Button(
                     onClick = onOverrideTaken,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 48.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 ) {
                     Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = CareCloseWording.caregiverOverrideButton(activeCaregiverRole, item.task.type),
+                        text = CareCloseWording.caregiverOverrideButton(activeCaregiverRole, item.task.type, appLanguage),
                         fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -1479,11 +1534,18 @@ private fun CaregiverTimelineTaskCard(
     }
 }
 
-private enum class TaskScheduleFilter(val label: String) {
-    ALL("Всі"),
-    MEDICATION("💊 Ліки"),
-    ROUTINE("📋 Рутина"),
-    ONE_OFF("⏰ Одноразові"),
+private enum class TaskScheduleFilter {
+    ALL,
+    MEDICATION,
+    ROUTINE,
+    ONE_OFF;
+
+    fun title(lang: AppLanguage): String = when (this) {
+        ALL -> CareCloseStrings.filterAll(lang)
+        MEDICATION -> CareCloseStrings.filterMedication(lang)
+        ROUTINE -> CareCloseStrings.filterRoutine(lang)
+        ONE_OFF -> CareCloseStrings.filterOneOff(lang)
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1491,6 +1553,7 @@ private enum class TaskScheduleFilter(val label: String) {
 private fun ScheduleEditorContent(
     plan: PlanSnapshot,
     isReadOnly: Boolean = false,
+    appLanguage: AppLanguage = AppLanguage.UKRAINIAN,
     onAddTask: () -> Unit,
     onAddOneOff: () -> Unit,
     onEditTask: (TaskRule) -> Unit,
@@ -1520,9 +1583,12 @@ private fun ScheduleEditorContent(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 ) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Режим помічника", fontWeight = FontWeight.Bold)
+                        Text(if (appLanguage == AppLanguage.ENGLISH) "Helper Mode" else "Режим помічника", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "Розклад і дозування формуються головним опікуном. Ви можете переглядати графік та інструкції.",
+                            text = if (appLanguage == AppLanguage.ENGLISH)
+                                "Schedule and dosages are managed by the primary caregiver. You can view tasks and instructions."
+                            else
+                                "Розклад і дозування формуються головним опікуном. Ви можете переглядати графік та інструкції.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -1541,23 +1607,23 @@ private fun ScheduleEditorContent(
                         onClick = onAddTask,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
+                            .defaultMinSize(minHeight = 48.dp),
                         shape = RoundedCornerShape(14.dp),
                     ) {
                         Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Справа / ліки", style = MaterialTheme.typography.labelLarge)
+                        Text(CareCloseStrings.btnAddTask(appLanguage), style = MaterialTheme.typography.labelLarge)
                     }
                     OutlinedButton(
                         onClick = onAddOneOff,
                         modifier = Modifier
                             .weight(1.1f)
-                            .height(48.dp),
+                            .defaultMinSize(minHeight = 48.dp),
                         shape = RoundedCornerShape(14.dp),
                     ) {
                         Icon(Icons.Rounded.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Одноразове", style = MaterialTheme.typography.labelLarge)
+                        Text(CareCloseStrings.btnAddOneOff(appLanguage), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -1569,9 +1635,9 @@ private fun ScheduleEditorContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Якорі дня (їжа / підйом)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(CareCloseStrings.anchorsHeader(appLanguage), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 if (!isReadOnly) {
-                    TextButton(onClick = onAddAnchor) { Text("+ Додати якір") }
+                    TextButton(onClick = onAddAnchor) { Text(CareCloseStrings.addAnchor(appLanguage)) }
                 }
             }
         }
@@ -1588,14 +1654,16 @@ private fun ScheduleEditorContent(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(anchor.title, fontWeight = FontWeight.SemiBold)
+                        val windowLabel = if (appLanguage == AppLanguage.ENGLISH) "Window" else "Вікно"
                         Text(
-                            text = "Вікно: ${anchor.windowStart}–${anchor.windowEnd}",
+                            text = "$windowLabel: ${anchor.windowStart}–${anchor.windowEnd}",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         if (linkedTasks.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(2.dp))
+                            val tasksCountLabel = if (appLanguage == AppLanguage.ENGLISH) "🔗 Linked tasks: ${linkedTasks.size}" else "🔗 Прив'язано справ: ${linkedTasks.size}"
                             Text(
-                                text = "🔗 Прив'язано справ: ${linkedTasks.size}",
+                                text = tasksCountLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold,
@@ -1612,9 +1680,14 @@ private fun ScheduleEditorContent(
         }
 
         item {
-            val friendlyVersion = PlanVersionHelper.formatFriendly(plan.planVersion, plan.effectiveFromUtc, plan.safeZoneId)
+            val friendlyVersion = PlanVersionHelper.formatFriendly(
+                planVersion = plan.planVersion,
+                effectiveFromUtc = plan.effectiveFromUtc,
+                zoneId = plan.safeZoneId,
+                language = appLanguage,
+            )
             Text(
-                text = "Ліки та справи (графік: $friendlyVersion)",
+                text = CareCloseStrings.tasksHeader(appLanguage, friendlyVersion),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -1622,14 +1695,16 @@ private fun ScheduleEditorContent(
 
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 TaskScheduleFilter.values().forEach { filter ->
                     FilterChip(
                         selected = activeFilter == filter,
                         onClick = { activeFilter = filter },
-                        label = { Text(filter.label, style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(filter.title(appLanguage), style = MaterialTheme.typography.labelSmall) },
                     )
                 }
             }
@@ -1644,7 +1719,7 @@ private fun ScheduleEditorContent(
                 ) {
                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "У цій категорії немає завдань",
+                            text = CareCloseStrings.noTasksInFilter(appLanguage),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1795,6 +1870,8 @@ private fun CaregiverSettingsContent(
     currentButtonSize: FloatingButtonSize = FloatingButtonSize.LARGE,
     currentElderTheme: AppThemeMode = AppThemeMode.SYSTEM,
     localThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    localLanguage: AppLanguage = AppLanguage.SYSTEM,
+    currentPin: String = "1234",
     accessLevel: CaregiverAccessLevel = CaregiverAccessLevel.PRIMARY,
     onOpenOnboarding: () -> Unit,
     onOpenShareHelperDialog: () -> Unit = {},
@@ -1804,6 +1881,8 @@ private fun CaregiverSettingsContent(
     onUpdateFloatingButtonSize: (FloatingButtonSize) -> Unit = {},
     onUpdateElderTheme: (AppThemeMode) -> Unit = {},
     onUpdateLocalTheme: (AppThemeMode) -> Unit = {},
+    onUpdateLanguage: (AppLanguage) -> Unit = {},
+    onUpdateCaregiverPin: (String) -> Unit = {},
     onPublishCurrentPlan: () -> Unit,
     onTestMissedCheck: () -> Unit,
 ) {
@@ -1820,6 +1899,9 @@ private fun CaregiverSettingsContent(
     var contactPhone by remember(plan.emergencyContact?.phone) {
         mutableStateOf(plan.emergencyContact?.phone ?: "")
     }
+
+    var editedPin by remember(currentPin) { mutableStateOf(currentPin) }
+    var pinMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -2078,6 +2160,73 @@ private fun CaregiverSettingsContent(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = CareCloseStrings.languageSettingTitle(localLanguage),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppLanguage.entries.forEach { lang ->
+                        FilterChip(
+                            selected = localLanguage == lang,
+                            onClick = { onUpdateLanguage(lang) },
+                            label = { Text(lang.title) },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (accessLevel == CaregiverAccessLevel.PRIMARY) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = CareCloseStrings.caregiverPinSettingTitle(localLanguage),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = CareCloseStrings.caregiverPinHint(localLanguage),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = editedPin,
+                            onValueChange = {
+                                if (it.length <= 4 && it.all { ch -> ch.isDigit() }) {
+                                    editedPin = it
+                                }
+                            },
+                            label = { Text("PIN (4 цифри)") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        Button(
+                            onClick = {
+                                if (editedPin.length == 4) {
+                                    onUpdateCaregiverPin(editedPin)
+                                    pinMessage = if (localLanguage == AppLanguage.ENGLISH) "PIN saved!" else "PIN збережено!"
+                                }
+                            },
+                            enabled = editedPin.length == 4,
+                        ) {
+                            Text(CareCloseStrings.save(localLanguage))
+                        }
+                    }
+                    pinMessage?.let {
+                        Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
